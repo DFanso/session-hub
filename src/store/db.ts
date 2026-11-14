@@ -46,6 +46,19 @@ export interface SendRow {
  * A waiting item as shown: `answered` when the owner named its ID in the session's terminal, or a
  * Session Hub relay message did, after the status reply (src/status/answered.ts).
  */
+/**
+ * Owner and relay messages newer than each live session's status reply (bound: the relay's name).
+ * CROSS JOIN fixes the join order: from the few status rows to the messages index by (session_id,
+ * ts). Without it SQLite scanned every message on each read of the session list, and the longer
+ * reads kept a purge's WAL checkpoint waiting. Exported for the query-plan test.
+ */
+export const ANSWERS_SQL = `SELECT m.session_id, m.text FROM status st
+  CROSS JOIN sessions s CROSS JOIN messages m
+  WHERE s.session_id = st.session_id AND s.ended_at IS NULL AND st.waiting_json <> '[]'
+    AND m.session_id = st.session_id AND m.ts > st.reply_ts
+    AND (m.role = 'owner' OR (m.role = 'peer' AND m.from_name = ?))
+  ORDER BY m.session_id, m.ts`;
+
 export interface ViewWaitingItem extends WaitingItem {
   answered: boolean;
 }
@@ -292,16 +305,10 @@ export class Store {
    * sessions are not counted anywhere, so their items are never marked.
    */
   private answersSinceStatus(): Map<string, string[]> {
-    const rows = this.db
-      .query(
-        `SELECT m.session_id, m.text FROM status st
-           JOIN sessions s ON s.session_id = st.session_id AND s.ended_at IS NULL
-           JOIN messages m ON m.session_id = st.session_id AND m.ts > st.reply_ts
-          WHERE st.waiting_json <> '[]'
-            AND (m.role = 'owner' OR (m.role = 'peer' AND m.from_name = ?))
-          ORDER BY m.session_id, m.ts`,
-      )
-      .all(RELAY_NAME) as { session_id: string; text: string }[];
+    const rows = this.db.query(ANSWERS_SQL).all(RELAY_NAME) as {
+      session_id: string;
+      text: string;
+    }[];
     const out = new Map<string, string[]>();
     for (const r of rows) {
       const list = out.get(r.session_id);

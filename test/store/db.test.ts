@@ -4,7 +4,13 @@ import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { RETENTION_MS } from "../../src/config";
-import { type MessageRow, type SendRow, type SessionRow, Store } from "../../src/store/db";
+import {
+  ANSWERS_SQL,
+  type MessageRow,
+  type SendRow,
+  type SessionRow,
+  Store,
+} from "../../src/store/db";
 import { MIGRATIONS } from "../../src/store/schema";
 
 let dir: string;
@@ -280,6 +286,26 @@ describe("status", () => {
     const w = s.listSessions().find((x) => x.sessionId === "s1");
     expect(w?.status?.waiting[0]?.answered).toBe(false);
     expect(w?.waitingCount).toBe(1);
+  });
+});
+
+describe("answered-items query", () => {
+  test("starts from status rows and reads messages only by (session_id, ts)", () => {
+    const s = open();
+    s.close();
+    const db = new Database(dbPath);
+    const plan = (
+      db.query(`EXPLAIN QUERY PLAN ${ANSWERS_SQL}`).all("x") as { detail: string }[]
+    ).map((r) => r.detail);
+    db.close();
+    // Never a scan of messages: the bridge and the TUI run this on every read of the session list.
+    expect(plan[0]).toMatch(/^SCAN st\b/);
+    expect(plan.some((d) => /^SCAN m\b/.test(d))).toBe(false);
+    expect(
+      plan.some((d) =>
+        /^SEARCH m USING INDEX messages_session_ts \(session_id=\? AND ts>\?\)/.test(d),
+      ),
+    ).toBe(true);
   });
 });
 
@@ -698,7 +724,9 @@ describe("concurrency", () => {
     expect(reader.search("common", 5000)).toHaveLength(2000);
     expect(reader.search("ancient", 5)).toEqual([]);
     expect(reader.listSessions().map((r) => r.sessionId)).toEqual(["s1"]);
-  });
+    // The writer's purge ends with a WAL checkpoint that waits up to busy_timeout (5 s) for this
+    // reader's open snapshots, by design (best effort). The test's own limit must leave room for it.
+  }, 20_000);
 
   test("two handles writing interleaved", async () => {
     const a = open();
