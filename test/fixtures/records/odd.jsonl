@@ -1,0 +1,13 @@
+{"type":"user","isSidechain":false,"message":null,"uuid":"o-1","timestamp":"t"}
+{"type":"user","isSidechain":false,"message":"str","uuid":"o-2","timestamp":"t"}
+{"type":"assistant","isSidechain":false,"message":{"role":"assistant","content":42},"uuid":"o-3","timestamp":"t"}
+{"type":"attachment","isSidechain":false,"uuid":"o-4","timestamp":"t"}
+{"type":"attachment","isSidechain":false,"uuid":"o-5","timestamp":"t","attachment":{"type":"queued_command","prompt":"fixture x"}}
+{"type":"user","isSidechain":false,"message":{"role":"user","content":[{"type":"text","text":"fixture mixed"},{"type":"tool_result","tool_use_id":"t","content":"x"}]},"uuid":"o-6","timestamp":"t"}
+{"type":42,"uuid":"o-7"}
+{"type":"user","isSidechain":false,"uuid":"o-8","timestamp":"t"}
+{"type":"assistant","isSidechain":false,"message":{"role":"assistant"},"uuid":"o-9","timestamp":"t"}
+{"type":"user","isSidechain":false,"message":{"role":"user","content":null},"uuid":"o-10","timestamp":"t"}
+{"type":"attachment","isSidechain":false,"uuid":"o-11","timestamp":"t","attachment":{"type":"queued_command","prompt":"fixture x","origin":"fixture peer"}}
+{"type":"attachment","isSidechain":false,"uuid":"o-12","timestamp":"t","attachment":{"type":"queued_command","prompt":"fixture x","origin":null}}
+{"type":"assistant","isSidechain":false,"message":[],"uuid":"o-13","timestamp":"t","version":"2.9.0"}

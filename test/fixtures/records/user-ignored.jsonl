@@ -1,0 +1,7 @@
+{"isSidechain":false,"type":"user","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"t1","content":"fixture tool output"}]},"uuid":"u-3","timestamp":"2026-11-13T08:26:30.000Z","sourceToolAssistantUUID":"a-1","toolUseResult":{"stdout":"x"}}
+{"isSidechain":false,"isMeta":true,"type":"user","message":{"role":"user","content":"fixture meta text"},"uuid":"u-4","timestamp":"2026-11-13T08:26:31.000Z"}
+{"isSidechain":true,"type":"user","message":{"role":"user","content":"fixture sidechain text"},"uuid":"u-5","timestamp":"2026-11-13T08:26:32.000Z"}
+{"isSidechain":false,"type":"user","message":{"role":"user","content":"fixture non human"},"uuid":"u-6","timestamp":"2026-11-13T08:26:33.000Z","origin":{"kind":"task-notification"}}
+{"isSidechain":false,"type":"user","message":{"role":"user","content":"fixture string origin"},"uuid":"u-7","timestamp":"2026-11-13T08:26:34.000Z","origin":"human"}
+{"isSidechain":false,"type":"user","message":{"role":"user","content":"fixture null origin"},"uuid":"u-8","timestamp":"2026-11-13T08:26:35.000Z","origin":null}
+{"isSidechain":false,"type":"user","message":{"role":"user","content":"fixture array origin"},"uuid":"u-9","timestamp":"2026-11-13T08:26:36.000Z","origin":[{"kind":"human"}]}

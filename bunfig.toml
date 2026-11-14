@@ -1,0 +1,20 @@
+[install]
+exact = true
+
+[test]
+root = "."
+# Per file. With only "lines" set, bun applies the same 0.85 to functions, so the gate failed on
+# function counts nobody chose; functions now have their own explicit floor.
+coverageThreshold = { lines = 0.85, functions = 0.75 }
+coverageSkipTestFiles = true
+# Composition roots that wire the real Windows platform (like src/cli.ts) and the test fake.
+coveragePathIgnorePatterns = [
+  "src/tui/**",
+  "src/platform/windows/**",
+  "src/cli.ts",
+  "src/cli/real-deps.ts",
+  "src/platform/fake.ts",
+  # The taskkill /T call only runs on Windows, so the Linux CI runner can never cover it.
+  "src/util/taskkill.ts",
+  "test/**",
+]

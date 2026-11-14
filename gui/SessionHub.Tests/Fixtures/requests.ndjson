@@ -1,0 +1,14 @@
+{"id":1,"type":"history","sessionId":"s-alpha","limit":50}
+{"id":2,"type":"history","sessionId":"s-alpha","limit":50,"beforeTs":"2025-11-13T02:10:00.000Z"}
+{"id":3,"type":"search","q":"deploy","limit":20}
+{"id":4,"type":"send","sessionId":"s-alpha","text":"hello from the tray\nsecond line"}
+{"id":5,"type":"send","sessionId":"s-alpha","text":"please fail"}
+{"id":6,"type":"send","sessionId":"s-beta","text":"are you there?"}
+{"id":7,"type":"send","sessionId":"s-beta","text":"are you there?","override":true}
+{"id":8,"type":"send","sessionId":"s-alpha","text":"   "}
+{"id":9,"type":"startDaemon"}
+{"id":10,"type":"ping"}
+{"id":11,"type":"history","sessionId":"s-alpha","limit":1}
+{"id":12,"type":"history","sessionId":"s-big","limit":10}
+{"id":13,"type":"history","sessionId":"s-alpha","limit":50,"beforeTs":"2025-11-13T02:10:00.000Z","beforeUuid":"m3"}
+{"type":"shutdown"}

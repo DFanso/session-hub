@@ -1,0 +1,9 @@
+# Every path needs the owner's review. Sensitive paths are listed explicitly so a later
+# catch-all change cannot drop them silently.
+*                       @ravindu0823
+/.github/               @ravindu0823
+/scripts/               @ravindu0823
+/src/send/              @ravindu0823
+/src/security/          @ravindu0823
+/src/platform/windows/  @ravindu0823
+/gui/SessionHub.Tray/   @ravindu0823

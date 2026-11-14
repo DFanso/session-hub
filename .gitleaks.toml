@@ -1,0 +1,6 @@
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Synthetic secrets in test fixtures"
+paths = ['''^test/fixtures/''']

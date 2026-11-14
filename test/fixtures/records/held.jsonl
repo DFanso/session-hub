@@ -1,0 +1,3 @@
+{"parentUuid":"p3","isSidechain":false,"type":"system","subtype":"informational","content":"Held peer message — from an unidentified session (peer claims name: scratchpad-03); preview: «fixture» [1 line] — not delivered to Claude (1 held).","isMeta":false,"timestamp":"2026-11-13T08:28:00.000Z","uuid":"h-1","level":"warning"}
+{"isSidechain":false,"type":"system","subtype":"informational","content":"Held peer message — from an unidentified session; preview: «fixture»","timestamp":"2026-11-13T08:28:01.000Z","uuid":"h-2"}
+{"isSidechain":false,"type":"system","subtype":"informational","content":"Some other notice","timestamp":"2026-11-13T08:28:02.000Z","uuid":"h-3"}

@@ -1,0 +1,9 @@
+{"code":"unknown-session","text":"Session Hub doesn't know this session yet; try again in a few seconds."}
+{"code":"session-not-live","text":"That session isn't running any more."}
+{"code":"duplicate-name","text":"Two live sessions share this name; rename one (/rename) and try again."}
+{"code":"unsafe-name","text":"This session's name has characters Session Hub can't send to safely. Rename it in Claude Code (/rename) and try again."}
+{"code":"send-in-flight","text":"A message to this session is still pending. Check its state, or override it in the preview."}
+{"code":"empty-message","text":"The message is empty. Type something first."}
+{"code":"too-long","text":"The message is too long. Shorten it and try again."}
+{"code":"rate-limited","text":"Six messages went out in the last minute. Wait a minute and try again."}
+{"code":"looks-secret","text":"The message looks like it contains a secret or card number; it goes to the model provider. Send anyway?"}

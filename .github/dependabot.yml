@@ -1,0 +1,28 @@
+version: 2
+# No commercial packages are used (audit-deps DEP-03/DEP-08), so no version caps are needed.
+# Minor and patch updates come grouped per ecosystem; majors stay one PR each for review.
+updates:
+  - package-ecosystem: bun
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      bun-minor-patch:
+        update-types: [minor, patch]
+  - package-ecosystem: nuget
+    directory: /gui
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      nuget-minor-patch:
+        update-types: [minor, patch]
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      actions-minor-patch:
+        update-types: [minor, patch]

@@ -1,0 +1,13 @@
+{"type":"queue-operation","operation":"enqueue","content":"fixture q"}
+{"type":"last-prompt","lastPrompt":"fixture lp"}
+{"type":"mode","mode":"x"}
+{"type":"ai-title","aiTitle":"fixture title"}
+{"type":"tools-used","tools":[]}
+{"type":"atis-latch"}
+{"type":"session-owner"}
+{"type":"pr-link","url":"fixture link"}
+{"type":"frame-link","url":"fixture frame"}
+{"type":"cost-state","costUsd":1}
+{"type":"artifact-autoreact-ledger","entries":[]}
+{"type":"artifact-comment-monitor","state":"fixture x"}
+{"type":"brand-new-type","uuid":"x"}

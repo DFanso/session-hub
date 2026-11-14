@@ -1,0 +1,37 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
+    <OutputType>WinExe</OutputType>
+    <AssemblyName>SessionHubTray</AssemblyName>
+    <RootNamespace>SessionHub.Tray</RootNamespace>
+    <UseWPF>true</UseWPF>
+    <!-- WinForms only for NotifyIcon and its context menu. -->
+    <UseWindowsForms>true</UseWindowsForms>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>app.ico</ApplicationIcon>
+    <RuntimeIdentifiers>win-x64</RuntimeIdentifiers>
+    <IsPackable>false</IsPackable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <!-- WFO0003 asks WinForms apps to set DPI in code; this is a WPF app (WinForms only for
+         NotifyIcon), and the spec puts per-monitor-v2 DPI in app.manifest. -->
+    <NoWarn>$(NoWarn);WFO0003</NoWarn>
+    <Product>Session Hub</Product>
+    <Version>1.1.0</Version>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\SessionHub.Core\SessionHub.Core.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- The window's title-bar and taskbar icon. -->
+    <Resource Include="app.ico" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- Fixture data for the hidden render-check switch only (no real session data). -->
+    <EmbeddedResource Include="..\SessionHub.Tests\Fixtures\snapshot.ndjson" LogicalName="Fixtures.snapshot.ndjson" Link="Fixtures\snapshot.ndjson" />
+    <!-- One short history reply (a copy of the first line of the test fixture replies.ndjson). -->
+    <EmbeddedResource Include="RenderFixtures\exchange.ndjson" LogicalName="Fixtures.exchange.ndjson" />
+  </ItemGroup>
+</Project>

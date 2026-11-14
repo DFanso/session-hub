@@ -1,0 +1,314 @@
+import { describe, expect, test } from "bun:test";
+import { join } from "node:path";
+import { extractStatus } from "../../src/status/extract";
+
+const fx = (name: string) =>
+  Bun.file(join(import.meta.dir, "..", "fixtures", "replies", name)).text();
+
+describe("extractStatus", () => {
+  test("full reply", async () => {
+    const s = extractStatus(await fx("full.md"));
+    expect(s).not.toBeNull();
+    expect(s?.progressPct).toBe(25);
+    expect(s?.phase).toBe("build, Task 1 of 15 (scaffold) running");
+    expect(s?.remaining).toEqual([
+      "Tasks 1-13: build with review (Task 1 running now).",
+      "Task 14: install on this PC and real end-to-end test.",
+    ]);
+    expect(s?.waiting.map((w) => w.id)).toEqual(["SH1", "SH9", "Q15", "NT56", null]);
+    expect(s?.waiting[0]).toEqual({
+      id: "SH1",
+      text: "SH1–SH8: answered.",
+      isNew: false,
+      children: [],
+    });
+    expect(s?.waiting[1]).toEqual({
+      id: "SH9",
+      text: "Do you approve the design doc as written?",
+      isNew: true,
+      children: [],
+    });
+    expect(s?.waiting[2]?.text).toBe("Pick a region (Recommended)");
+    expect(s?.waiting[3]?.text).toBe("push the plan");
+    expect(s?.waiting[4]).toEqual({
+      id: null,
+      text: "Plain question without an id",
+      isNew: false,
+      children: [],
+    });
+    expect(s?.waiting.some((w) => w.text.includes("fence"))).toBe(false);
+  });
+
+  test("recommendations", async () => {
+    const s = extractStatus(await fx("full.md"));
+    expect(s?.recommendations).toEqual([
+      "Scaffold is in. I recommend keeping Bun for the runner.",
+      "Q15 Pick a region (Recommended)",
+    ]);
+  });
+
+  test("recommendations deduped and capped at 5", () => {
+    const body = Array.from({ length: 8 }, (_, i) => `I recommend option ${i}`).join("\n");
+    const s = extractStatus(
+      `**Progress: about 5% overall. Phase: x.**\n${body}\nI recommend option 0\n`,
+    );
+    expect(s?.recommendations).toHaveLength(5);
+    expect(new Set(s?.recommendations).size).toBe(5);
+    const t = extractStatus(
+      `**Progress: about 5% overall. Phase: x.**\nMy Pick: A\nMy pick: A\nmy pick: A\n`,
+    );
+    expect(t?.recommendations).toEqual(["My Pick: A", "My pick: A", "my pick: A"]);
+  });
+
+  test("nested waiting bullets, curly apostrophe, no 'about'", async () => {
+    const s = extractStatus(await fx("nested.md"));
+    expect(s?.progressPct).toBe(60);
+    expect(s?.phase).toBe("CI setup");
+    expect(s?.remaining).toEqual(["Wire the runner."]);
+    expect(s?.waiting).toEqual([
+      {
+        id: "SH10",
+        text: "Before CI can run:",
+        isNew: true,
+        children: ["create the repo", "register the runner with the token"],
+      },
+      { id: "BM3", text: "Confirm label", isNew: false, children: [] },
+    ]);
+  });
+
+  test("nothing means empty lists", async () => {
+    const s = extractStatus(await fx("nothing.md"));
+    expect(s?.progressPct).toBe(100);
+    expect(s?.remaining).toEqual([]);
+    expect(s?.waiting).toEqual([]);
+  });
+
+  test("nothing in any case with period", () => {
+    const s = extractStatus("### What's remaining\nNOTHING.\n### Waiting on you\n- Nothing\n");
+    expect(s?.remaining).toEqual([]);
+    expect(s?.waiting).toEqual([]);
+  });
+
+  test("one-line answer is null", async () => {
+    expect(extractStatus(await fx("oneliner.md"))).toBeNull();
+    expect(extractStatus("")).toBeNull();
+  });
+
+  test("bold-line headings and bullet kinds", async () => {
+    const s = extractStatus(await fx("bold-headings.md"));
+    expect(s?.progressPct).toBeNull();
+    expect(s?.phase).toBeNull();
+    expect(s?.remaining).toEqual(["Do the thing.", "Do the other thing."]);
+    expect(s?.waiting.map((w) => w.id)).toEqual(["Q2", "Q3"]);
+  });
+
+  test("section ends at next heading", () => {
+    const s = extractStatus(
+      "### What's remaining\n1. A\n## Other\n2. B\n### Waiting on you\n- Q1 ask\n",
+    );
+    expect(s?.remaining).toEqual(["A"]);
+    expect(s?.waiting).toHaveLength(1);
+  });
+
+  test("bold-line heading of other section ends section", () => {
+    const s = extractStatus("**What's remaining**\n1. A\n**Waiting on you**\n- Q1 ask\n");
+    expect(s?.remaining).toEqual(["A"]);
+    expect(s?.waiting[0]?.id).toBe("Q1");
+  });
+
+  test("progress clamped and fence ignored", () => {
+    expect(extractStatus("**Progress: about 250% overall. Phase: p.**")?.progressPct).toBe(100);
+    expect(extractStatus("```\n**Progress: about 50% overall. Phase: p.**\n```\n")).toBeNull();
+  });
+
+  test("IDs", () => {
+    const s = extractStatus(
+      "### Waiting on you\n- Q15 a\n- SH10: b\n- NT56: c\n- BM3: d\n- **New:** SH9: e\n- **SH4**: f\n",
+    );
+    expect(s?.waiting.map((w) => [w.id, w.text, w.isNew])).toEqual([
+      ["Q15", "a", false],
+      ["SH10", "b", false],
+      ["NT56", "c", false],
+      ["BM3", "d", false],
+      ["SH9", "e", true],
+      ["SH4", "f", false],
+    ]);
+  });
+
+  test("trailing paragraph, thematic break and table do not merge into last item", () => {
+    const s = extractStatus(
+      "### Waiting on you\n- Q1 approve x\n\nThanks, ping me when ready.\n\n---\nfooter\n",
+    );
+    expect(s?.waiting).toEqual([{ id: "Q1", text: "approve x", isNew: false, children: [] }]);
+    const t = extractStatus("### Waiting on you\n- Q1 approve x\n---\n- Q2 no\n");
+    expect(t?.waiting).toHaveLength(1);
+    const u = extractStatus("### Waiting on you\n- Q1 approve x\n| a | b |\n|---|---|\n");
+    expect(u?.waiting[0]?.text).toBe("approve x");
+  });
+
+  test("indented continuation after a blank line still joins", () => {
+    const s = extractStatus("### Waiting on you\n- Q1 approve x\n\n  and the rest\n");
+    expect(s?.waiting[0]?.text).toBe("approve x and the rest");
+  });
+
+  test("lead-in line before first bullet is dropped", () => {
+    const s = extractStatus("### Waiting on you\nThese need you:\n- Q1 a\n- Q2 b\n");
+    expect(s?.waiting.map((w) => w.id)).toEqual(["Q1", "Q2"]);
+  });
+
+  test("code spans and arithmetic are not corrupted", () => {
+    const s = extractStatus(
+      "### Waiting on you\n- Q1 approve `src/*.ts` and **bold** and 2 * 3 * 4 and snake_case_name\n",
+    );
+    expect(s?.waiting[0]?.text).toBe("approve src/*.ts and bold and 2 * 3 * 4 and snake_case_name");
+    const t = extractStatus("### Waiting on you\n- Q2 __x__ and _y_ and `**z**`\n");
+    expect(t?.waiting[0]?.text).toBe("x and y and **z**");
+  });
+
+  test("repeated heading: last with content wins", () => {
+    const a = extractStatus("### Waiting on you\n- Q1 first\n### Waiting on you\n- Q2 second\n");
+    expect(a?.waiting.map((w) => w.id)).toEqual(["Q2"]);
+    const b = extractStatus("### Waiting on you\n- Q1 first\n### Waiting on you\n- nothing\n");
+    expect(b?.waiting.map((w) => w.id)).toEqual(["Q1"]);
+    const c = extractStatus("### What's remaining\n1. A\n### What's remaining\n");
+    expect(c?.remaining).toEqual(["A"]);
+  });
+
+  test("inline bold headings, bold hash headings and #### level", () => {
+    const a = extractStatus("**Waiting on you:** Q5 approve\n- Q6 more\n");
+    expect(a?.waiting.map((w) => [w.id, w.text])).toEqual([
+      ["Q5", "approve"],
+      ["Q6", "more"],
+    ]);
+    expect(extractStatus("**Waiting on you:** nothing\n")?.waiting).toEqual([]);
+    expect(extractStatus("### **Waiting on you**\n- Q1 a\n")?.waiting[0]?.id).toBe("Q1");
+    expect(extractStatus("#### What's remaining\n1. A\n")?.remaining).toEqual(["A"]);
+  });
+
+  test("ID separators", () => {
+    const s = extractStatus(
+      "### Waiting on you\n- Q15, Q16: pick\n- **Q15** \u2014 x\n- Q15.5 y\n- Q15x z\n- SH9 - w\n- Q1-Q3 range\n",
+    );
+    expect(s?.waiting.map((w) => [w.id, w.text])).toEqual([
+      ["Q15", "Q16: pick"],
+      ["Q15", "x"],
+      [null, "Q15.5 y"],
+      [null, "Q15x z"],
+      ["SH9", "w"],
+      ["Q1", "Q1-Q3 range"],
+    ]);
+  });
+
+  test("remaining children fold into parent", () => {
+    const s = extractStatus(
+      "### What's remaining\n1. Build\n   - a\n   - b\n2. Before CI:\n   - c\n3. Plain\n",
+    );
+    expect(s?.remaining).toEqual(["Build: a; b", "Before CI: c", "Plain"]);
+  });
+
+  test("progress anchored at line start, decimals rounded", () => {
+    expect(extractStatus("**Progress: about 33.5% overall. Phase: p.**")?.progressPct).toBe(34);
+    expect(extractStatus("see **Progress: about 50% overall. Phase: p.** quoted")).toBeNull();
+    expect(extractStatus("Progress: 40% overall. Phase: plain.")?.phase).toBe("plain");
+  });
+
+  test("bold around ids and whole items", () => {
+    const s = extractStatus(
+      "### Waiting on you\n- **Q15:** text\n- **Q15 approve x**\n- **New:** **SH9:** go\n- **New: SH9** foo\n- SH1\u2013SH8: answered.\n",
+    );
+    expect(s?.waiting.map((w) => [w.id, w.text, w.isNew])).toEqual([
+      ["Q15", "text", false],
+      ["Q15", "approve x", false],
+      ["SH9", "go", true],
+      ["SH9", "foo", true],
+      ["SH1", "SH1\u2013SH8: answered.", false],
+    ]);
+  });
+
+  test("code span at item start is never an id", () => {
+    const s = extractStatus(
+      "### Waiting on you\n- `Q15` stays open\n- `S3 bucket` needs a policy\n- `V8` upgrade\n- `H2: foo`\n- _Q15_ foo\n",
+    );
+    expect(s?.waiting.map((w) => [w.id, w.text])).toEqual([
+      [null, "Q15 stays open"],
+      [null, "S3 bucket needs a policy"],
+      [null, "V8 upgrade"],
+      [null, "H2: foo"],
+      ["Q15", "foo"],
+    ]);
+  });
+  test("hyphenated and multi-segment ids", () => {
+    const s = extractStatus(
+      [
+        "### Waiting on you",
+        "- AUTH-Q1 pick a token lifetime",
+        "- DB-Q1: which backup window",
+        "- AB2-Q3, tool version",
+        "- Q14 a",
+        "- SH29 b",
+        "- NT40 c",
+        "- **AUTH-Q1:** bold id",
+        "- New: **Q15** fresh",
+        "- **New:** **DB-Q2** — also fresh",
+        "",
+      ].join("\n"),
+    );
+    expect(s?.waiting.map((w) => [w.id, w.text, w.isNew])).toEqual([
+      ["AUTH-Q1", "pick a token lifetime", false],
+      ["DB-Q1", "which backup window", false],
+      ["AB2-Q3", "tool version", false],
+      ["Q14", "a", false],
+      ["SH29", "b", false],
+      ["NT40", "c", false],
+      ["AUTH-Q1", "bold id", false],
+      ["Q15", "fresh", true],
+      ["DB-Q2", "also fresh", true],
+    ]);
+  });
+
+  test("words that are not ids", () => {
+    for (const item of [
+      "OK go",
+      "Q alone",
+      "A- dash",
+      "AUTH- dash",
+      "2FA on",
+      "q1 lower",
+      "JavaScript upgrade",
+      "AUTH-q1 lower",
+      "AUTH-QA no digit",
+      "AUTH--Q1 double dash",
+      "E2E tests",
+      "ABCDEFGHI1 segment too long",
+      "AB1-CD2-EF3-GH4-IJ5-KL6-MN7 longer than 24",
+    ]) {
+      const s = extractStatus(`### Waiting on you\n- ${item}\n`);
+      expect([item, s?.waiting[0]?.id]).toEqual([item, null]);
+    }
+  });
+
+  test("ranges keep the first id and the whole text, with the new id shapes", () => {
+    const s = extractStatus(
+      [
+        "### Waiting on you",
+        "- Q5–Q8: answered.",
+        "- Q1-Q3 range",
+        "- AUTH-Q1–AUTH-Q4: answered.",
+        "- AUTH-Q1-AUTH-Q3 hyphen range",
+        "- AUTH-Q1-Q3 short range",
+        "- AUTH-Q3-Q1 not ascending",
+        "- AUTH-Q1-XQ3 other stem",
+        "",
+      ].join("\n"),
+    );
+    expect(s?.waiting.map((w) => [w.id, w.text])).toEqual([
+      ["Q5", "Q5–Q8: answered."],
+      ["Q1", "Q1-Q3 range"],
+      ["AUTH-Q1", "AUTH-Q1–AUTH-Q4: answered."],
+      ["AUTH-Q1", "AUTH-Q1-AUTH-Q3 hyphen range"],
+      ["AUTH-Q1", "AUTH-Q1-Q3 short range"],
+      ["AUTH-Q3-Q1", "not ascending"],
+      ["AUTH-Q1-XQ3", "other stem"],
+    ]);
+  });
+});

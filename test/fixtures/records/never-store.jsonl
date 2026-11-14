@@ -1,0 +1,5 @@
+{"type":"api-request","uuid":"n-1","timestamp":"2026-11-13T08:29:00.000Z","content":"fixture request text","message":{"content":"fixture request text"}}
+{"type":"api-request-blob","uuid":"n-2","blob":"fixture blob text"}
+{"type":"api-request-shape","uuid":"n-3","shape":"fixture shape text"}
+{"type":"file-history-snapshot","messageId":"n-4","snapshot":{"x":"fixture snapshot text"}}
+{"type":"file-history-delta","messageId":"n-5","delta":"fixture delta text"}

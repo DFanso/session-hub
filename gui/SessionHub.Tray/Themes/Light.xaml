@@ -1,0 +1,79 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <!-- Light tokens of the kv tray design system (kv, crates/kv/src/tray/page/app.css, MIT/Apache-2.0). -->
+    <Color x:Key="BgColor">#ECE7E2</Color>
+    <SolidColorBrush x:Key="Bg" Color="#ECE7E2" />
+    <Color x:Key="BgTopColor">#F6F2EE</Color>
+    <SolidColorBrush x:Key="BgTop" Color="#F6F2EE" />
+    <Color x:Key="GlowColor">#14EE4F22</Color>
+    <SolidColorBrush x:Key="Glow" Color="#14EE4F22" />
+    <Color x:Key="SurfaceColor">#FBF9F7</Color>
+    <SolidColorBrush x:Key="Surface" Color="#FBF9F7" />
+    <Color x:Key="Surface2Color">#F1ECE7</Color>
+    <SolidColorBrush x:Key="Surface2" Color="#F1ECE7" />
+    <Color x:Key="GlassColor">#8CFFFFFF</Color>
+    <SolidColorBrush x:Key="Glass" Color="#8CFFFFFF" />
+    <Color x:Key="GlassHoverColor">#CCFFFFFF</Color>
+    <SolidColorBrush x:Key="GlassHover" Color="#CCFFFFFF" />
+    <Color x:Key="LineColor">#E2DBD4</Color>
+    <SolidColorBrush x:Key="Line" Color="#E2DBD4" />
+    <Color x:Key="LineStrongColor">#D3CAC2</Color>
+    <SolidColorBrush x:Key="LineStrong" Color="#D3CAC2" />
+    <Color x:Key="TextColor">#1E1A17</Color>
+    <SolidColorBrush x:Key="Text" Color="#1E1A17" />
+    <Color x:Key="Text2Color">#5B544F</Color>
+    <SolidColorBrush x:Key="Text2" Color="#5B544F" />
+    <Color x:Key="MutedColor">#6B635D</Color>
+    <SolidColorBrush x:Key="Muted" Color="#6B635D" />
+    <Color x:Key="AccentColor">#B03413</Color>
+    <SolidColorBrush x:Key="Accent" Color="#B03413" />
+    <Color x:Key="AccentSoftColor">#21EE4F22</Color>
+    <SolidColorBrush x:Key="AccentSoft" Color="#21EE4F22" />
+    <Color x:Key="AccentFillColor">#C93C14</Color>
+    <SolidColorBrush x:Key="AccentFill" Color="#C93C14" />
+    <Color x:Key="OnAccentColor">#FFFFFF</Color>
+    <SolidColorBrush x:Key="OnAccent" Color="#FFFFFF" />
+    <Color x:Key="TealColor">#0D5C99</Color>
+    <SolidColorBrush x:Key="Teal" Color="#0D5C99" />
+    <Color x:Key="TealSoftColor">#1F0D5C99</Color>
+    <SolidColorBrush x:Key="TealSoft" Color="#1F0D5C99" />
+    <Color x:Key="AmberColor">#8A5200</Color>
+    <SolidColorBrush x:Key="Amber" Color="#8A5200" />
+    <Color x:Key="AmberSoftColor">#1FA85A00</Color>
+    <SolidColorBrush x:Key="AmberSoft" Color="#1FA85A00" />
+    <Color x:Key="AmberEdgeColor">#66A85A00</Color>
+    <SolidColorBrush x:Key="AmberEdge" Color="#66A85A00" />
+    <Color x:Key="RedColor">#A61F15</Color>
+    <SolidColorBrush x:Key="Red" Color="#A61F15" />
+    <Color x:Key="RedSoftColor">#1AA61F15</Color>
+    <SolidColorBrush x:Key="RedSoft" Color="#1AA61F15" />
+    <Color x:Key="RedEdgeColor">#66A61F15</Color>
+    <SolidColorBrush x:Key="RedEdge" Color="#66A61F15" />
+    <Color x:Key="RedFillColor">#C42B2B</Color>
+    <SolidColorBrush x:Key="RedFill" Color="#C42B2B" />
+    <Color x:Key="RedDotColor">#D93A2E</Color>
+    <SolidColorBrush x:Key="RedDot" Color="#D93A2E" />
+    <Color x:Key="GreenColor">#0F6B37</Color>
+    <SolidColorBrush x:Key="Green" Color="#0F6B37" />
+    <Color x:Key="GreenSoftColor">#1F0F6B37</Color>
+    <SolidColorBrush x:Key="GreenSoft" Color="#1F0F6B37" />
+    <Color x:Key="VioletColor">#5B3CC4</Color>
+    <SolidColorBrush x:Key="Violet" Color="#5B3CC4" />
+    <Color x:Key="VioletSoftColor">#1F5B3CC4</Color>
+    <SolidColorBrush x:Key="VioletSoft" Color="#1F5B3CC4" />
+    <Color x:Key="BadgeColor">#8A5200</Color>
+    <SolidColorBrush x:Key="Badge" Color="#8A5200" />
+    <Color x:Key="BadgeFgColor">#FFFFFF</Color>
+    <SolidColorBrush x:Key="BadgeFg" Color="#FFFFFF" />
+    <Color x:Key="ShadowColor">#381E1A17</Color>
+    <SolidColorBrush x:Key="Shadow" Color="#381E1A17" />
+    <!-- 170 deg linear gradient bg-top to bg (70 %), with a radial glow at the top right. -->
+    <LinearGradientBrush x:Key="PanelBackground" StartPoint="0.41,0" EndPoint="0.59,1">
+        <GradientStop Offset="0" Color="{StaticResource BgTopColor}" />
+        <GradientStop Offset="0.7" Color="{StaticResource BgColor}" />
+    </LinearGradientBrush>
+    <RadialGradientBrush x:Key="PanelGlow" Center="0.85,-0.1" GradientOrigin="0.85,-0.1" RadiusX="2.2" RadiusY="0.55">
+        <GradientStop Offset="0" Color="{StaticResource GlowColor}" />
+        <GradientStop Offset="0.6" Color="Transparent" />
+    </RadialGradientBrush>
+</ResourceDictionary>

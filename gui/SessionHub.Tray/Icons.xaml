@@ -1,0 +1,23 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <!-- Lucide icons (ISC licence, https://lucide.dev), converted from the SVG source to path data in a 24 x 24 box. Drawn with a 2 px round stroke by Glyph. -->
+    <Geometry x:Key="Icon.House">M 15 21 v -8 a 1 1 0 0 0 -1 -1 h -4 a 1 1 0 0 0 -1 1 v 8 M 3 10 a 2 2 0 0 1 0.709 -1.528 l 7 -5.999 a 2 2 0 0 1 2.582 0 l 7 5.999 A 2 2 0 0 1 21 10 v 9 a 2 2 0 0 1 -2 2 H 5 a 2 2 0 0 1 -2 -2 Z</Geometry>
+    <Geometry x:Key="Icon.Bot">M 12 8 V 4 H 8 M 6 8 H 18 A 2 2 0 0 1 20 10 V 18 A 2 2 0 0 1 18 20 H 6 A 2 2 0 0 1 4 18 V 10 A 2 2 0 0 1 6 8 Z M 2 14 h 2 M 20 14 h 2 M 15 13 v 2 M 9 13 v 2</Geometry>
+    <Geometry x:Key="Icon.Inbox">M 22 12 L 16 12 L 14 15 L 10 15 L 8 12 L 2 12 M 5.45 5.11 L 2 12 v 6 a 2 2 0 0 0 2 2 h 16 a 2 2 0 0 0 2 -2 v -6 l -3.45 -6.89 A 2 2 0 0 0 16.76 4 H 7.24 a 2 2 0 0 0 -1.79 1.11 Z</Geometry>
+    <Geometry x:Key="Icon.Send">M 14.536 21.686 a 0.5 0.5 0 0 0 0.937 -0.024 l 6.5 -19 a 0.496 0.496 0 0 0 -0.635 -0.635 l -19 6.5 a 0.5 0.5 0 0 0 -0.024 0.937 l 7.93 3.18 a 2 2 0 0 1 1.112 1.11 Z M 21.854 2.147 l -10.94 10.939</Geometry>
+    <Geometry x:Key="Icon.Settings">M 12.22 2 h -0.44 a 2 2 0 0 0 -2 2 v 0.18 a 2 2 0 0 1 -1 1.73 l -0.43 0.25 a 2 2 0 0 1 -2 0 l -0.15 -0.08 a 2 2 0 0 0 -2.73 0.73 l -0.22 0.38 a 2 2 0 0 0 0.73 2.73 l 0.15 0.1 a 2 2 0 0 1 1 1.72 v 0.51 a 2 2 0 0 1 -1 1.74 l -0.15 0.09 a 2 2 0 0 0 -0.73 2.73 l 0.22 0.38 a 2 2 0 0 0 2.73 0.73 l 0.15 -0.08 a 2 2 0 0 1 2 0 l 0.43 0.25 a 2 2 0 0 1 1 1.73 V 20 a 2 2 0 0 0 2 2 h 0.44 a 2 2 0 0 0 2 -2 v -0.18 a 2 2 0 0 1 1 -1.73 l 0.43 -0.25 a 2 2 0 0 1 2 0 l 0.15 0.08 a 2 2 0 0 0 2.73 -0.73 l 0.22 -0.39 a 2 2 0 0 0 -0.73 -2.73 l -0.15 -0.08 a 2 2 0 0 1 -1 -1.74 v -0.5 a 2 2 0 0 1 1 -1.74 l 0.15 -0.09 a 2 2 0 0 0 0.73 -2.73 l -0.22 -0.38 a 2 2 0 0 0 -2.73 -0.73 l -0.15 0.08 a 2 2 0 0 1 -2 0 l -0.43 -0.25 a 2 2 0 0 1 -1 -1.73 V 4 a 2 2 0 0 0 -2 -2 Z M 9 12 A 3 3 0 1 0 15 12 A 3 3 0 1 0 9 12 Z</Geometry>
+    <Geometry x:Key="Icon.Monitor">M 4 3 H 20 A 2 2 0 0 1 22 5 V 15 A 2 2 0 0 1 20 17 H 4 A 2 2 0 0 1 2 15 V 5 A 2 2 0 0 1 4 3 Z M 8 21 L 16 21 M 12 17 L 12 21</Geometry>
+    <Geometry x:Key="Icon.X">M 18 6 L 6 18 M 6 6 l 12 12</Geometry>
+    <Geometry x:Key="Icon.Search">M 3 11 A 8 8 0 1 0 19 11 A 8 8 0 1 0 3 11 Z M 21 21 l -4.3 -4.3</Geometry>
+    <Geometry x:Key="Icon.Power">M 12 2 v 10 M 18.4 6.6 a 9 9 0 1 1 -12.77 0.04</Geometry>
+    <Geometry x:Key="Icon.CircleCheck">M 2 12 A 10 10 0 1 0 22 12 A 10 10 0 1 0 2 12 Z M 9 12 l 2 2 l 4 -4</Geometry>
+    <Geometry x:Key="Icon.Terminal">M 4 17 L 10 11 L 4 5 M 12 19 L 20 19</Geometry>
+    <Geometry x:Key="Icon.ShieldCheck">M 20 13 c 0 5 -3.5 7.5 -7.66 8.95 a 1 1 0 0 1 -0.67 -0.01 C 7.5 20.5 4 18 4 13 V 6 a 1 1 0 0 1 1 -1 c 2 0 4.5 -1.2 6.24 -2.72 a 1.17 1.17 0 0 1 1.52 0 C 14.51 3.81 17 5 19 5 a 1 1 0 0 1 1 1 Z M 9 12 l 2 2 l 4 -4</Geometry>
+    <Geometry x:Key="Icon.CircleAlert">M 2 12 A 10 10 0 1 0 22 12 A 10 10 0 1 0 2 12 Z M 12 8 L 12 12 M 12 16 L 12.01 16</Geometry>
+    <Geometry x:Key="Icon.TriangleAlert">M 21.73 18 l -8 -14 a 2 2 0 0 0 -3.48 0 l -8 14 A 2 2 0 0 0 4 21 h 16 a 2 2 0 0 0 1.73 -3 M 12 9 v 4 M 12 17 h 0.01</Geometry>
+    <Geometry x:Key="Icon.Info">M 2 12 A 10 10 0 1 0 22 12 A 10 10 0 1 0 2 12 Z M 12 16 v -4 M 12 8 h 0.01</Geometry>
+    <Geometry x:Key="Icon.ScrollText">M 15 12 h -5 M 15 8 h -5 M 19 17 V 5 a 2 2 0 0 0 -2 -2 H 4 M 8 21 h 12 a 2 2 0 0 0 2 -2 v -1 a 1 1 0 0 0 -1 -1 H 11 a 1 1 0 0 0 -1 1 v 1 a 2 2 0 1 1 -4 0 V 5 a 2 2 0 1 0 -4 0 v 2 a 1 1 0 0 0 1 1 h 3</Geometry>
+    <Geometry x:Key="Icon.Check">M 20 6 L 9 17 l -5 -5</Geometry>
+    <Geometry x:Key="Icon.ChevronDown">M 6 9 l 6 6 l 6 -6</Geometry>
+    <Geometry x:Key="Icon.ChevronRight">M 9 18 l 6 -6 l -6 -6</Geometry>
+</ResourceDictionary>

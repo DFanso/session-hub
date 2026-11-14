@@ -1,0 +1,36 @@
+<UserControl x:Class="SessionHub.Tray.Controls.SendBox"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:c="clr-namespace:SessionHub.Tray.Controls"
+             xmlns:t="clr-namespace:SessionHub.Tray">
+    <!-- DataContext: CardViewModel. Enter sends, Shift+Enter is a new line (handled in code). -->
+    <StackPanel>
+        <Grid>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <Border x:Name="Field" CornerRadius="12" Background="{DynamicResource Surface}" BorderThickness="1"
+                    BorderBrush="{DynamicResource Line}" Padding="10,8" MinHeight="44">
+                <Grid>
+                    <TextBlock x:Name="Placeholder" Foreground="{DynamicResource Muted}" TextTrimming="CharacterEllipsis"
+                               IsHitTestVisible="False" VerticalAlignment="Top" />
+                    <TextBox x:Name="Input" Style="{StaticResource BareTextBox}" AcceptsReturn="False" TextWrapping="Wrap"
+                             MaxHeight="120" VerticalScrollBarVisibility="Auto" MaxLength="20000"
+                             AutomationProperties.Name="Message"
+                             Text="{Binding Session.Draft, UpdateSourceTrigger=PropertyChanged}"
+                             PreviewKeyDown="OnInputKeyDown" GotKeyboardFocus="OnFocusChanged" LostKeyboardFocus="OnFocusChanged"
+                             TextChanged="OnTextChanged" />
+                </Grid>
+            </Border>
+            <Button Grid.Column="1" Margin="8,0,0,0" Style="{StaticResource PrimaryButton}" VerticalAlignment="Bottom"
+                    Command="t:PanelCommands.Send" CommandParameter="{Binding}" AutomationProperties.Name="Send">
+                <StackPanel Orientation="Horizontal">
+                    <c:Glyph Data="{StaticResource Icon.Send}" Size="15" Margin="0,0,7,0" />
+                    <TextBlock Text="Send" />
+                </StackPanel>
+            </Button>
+        </Grid>
+        <c:SendStateLine Margin="2,6,0,0" />
+    </StackPanel>
+</UserControl>

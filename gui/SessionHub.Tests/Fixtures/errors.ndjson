@@ -1,0 +1,2 @@
+{"type":"error","code":"bad-json","message":"line is not a JSON object; skipped (1 malformed lines so far)"}
+{"type":"error","code":"unknown-type","message":"unknown request type; skipped (2 malformed lines so far)"}

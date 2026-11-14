@@ -1,0 +1,3 @@
+{"type":"send","send":{"id":1,"sessionId":"s-alpha","state":"held","detail":"recipient is busy; queued"}}
+{"type":"send","send":{"id":1,"sessionId":"s-alpha","state":"delivered","detail":null}}
+{"type":"send","send":{"id":2,"sessionId":"s-alpha","state":"failed","detail":"exit 1; result: FAILED: recipient not found"}}
