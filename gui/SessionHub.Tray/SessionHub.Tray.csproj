@@ -13,6 +13,9 @@
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>app.ico</ApplicationIcon>
     <RuntimeIdentifiers>win-x64</RuntimeIdentifiers>
+    <!-- Lets a restore or build on Linux (CI, GitHub's dependency submission, CodeQL) resolve the
+         Windows targeting packs. No effect on Windows. -->
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
     <IsPackable>false</IsPackable>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <!-- WFO0003 asks WinForms apps to set DPI in code; this is a WPF app (WinForms only for
