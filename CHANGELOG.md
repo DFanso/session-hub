@@ -28,6 +28,9 @@ messages to a session with SHA-256 delivery checks. First public release on 2026
 
 ### Fixed
 
+- After `/compact`, the compaction summary and local command output were indexed as the owner's
+  messages, so open waiting items could show as answered; they are no longer indexed, and an index
+  update removes the ones already stored. (#20)
 - A send stayed pending, and was counted as a stray relay message, when the relay changed the line break
   after the header line. (#9)
 - The answered-items query scanned every message on each session-list read. (#15)
