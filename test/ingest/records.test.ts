@@ -43,6 +43,21 @@ describe("classify", () => {
     expect(r[3]).toEqual({ kind: "ignored", reason: "non-human-origin" });
   });
 
+  test("a compaction summary and local command output are not owner prompts; a typed command is", () => {
+    const r = all("user-system.jsonl");
+    expect(r[0]).toEqual({ kind: "ignored", reason: "compact-summary" });
+    expect(r[1]).toEqual({ kind: "ignored", reason: "local-command-output" });
+    expect(r[2]).toEqual({ kind: "ignored", reason: "local-command-output" });
+    expect(r[3]).toEqual({ kind: "ignored", reason: "local-command-output" });
+    expect(r[4]?.kind).toBe("owner-prompt");
+    // Only text that starts with the tag is command output; the owner may mention the tag.
+    expect(r[5]).toMatchObject({
+      kind: "owner-prompt",
+      text: "Q7 yes, and see <local-command-stdout> above",
+    });
+    expect(JSON.stringify(r.slice(0, 4))).not.toContain("fixture");
+  });
+
   test("assistant joins text blocks, skips thinking and tool_use", () => {
     const r = all("assistant.jsonl");
     expect(r[0]).toEqual({
