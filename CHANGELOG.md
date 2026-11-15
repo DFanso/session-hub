@@ -17,6 +17,8 @@ messages to a session with SHA-256 delivery checks. First public release on 2026
 - `bun run relay-eval`: real-model relay check in `default`, `bypassPermissions` and `plan` modes with a
   report, and `relay-eval --check` as a release gate in the Windows test report. (#9)
 - CI: a Windows job running the full suite and the Windows-only suite, and a Semgrep scan. (#13)
+- The tray build fails on SQL injection, file path injection and disabled token validation findings
+  (CA3001, CA3003, CA5404). (#23)
 
 ### Changed
 
