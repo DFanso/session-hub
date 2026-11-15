@@ -70,15 +70,11 @@ export function statusLines(s: SessionView, meta: HubMeta, now: number, width: n
   });
   out.push({ text: "" });
   add("Waiting on you", { bold: true });
-  if (st.waiting.length === 0) add("  nothing", { dim: true });
-  for (const w of st.waiting) {
+  // An item the owner already answered after this list was posted is left out.
+  const open = st.waiting.filter((w) => !w.answered);
+  if (open.length === 0) add("  nothing", { dim: true });
+  for (const w of open) {
     const id = w.id ? `${w.id} ` : "";
-    // An item the owner already answered after this list was posted stays visible, dimmed.
-    if (w.answered) {
-      add(`  ${id}(answered) ${w.text}`, { dim: true }, "    ");
-      for (const c of w.children) add(`    - ${c}`, { dim: true }, "      ");
-      continue;
-    }
     const isNew = w.isNew ? "NEW " : "";
     add(`  ${id}${isNew}${w.text}`, w.isNew ? { color: "yellow" } : {}, "    ");
     for (const c of w.children) add(`    - ${c}`, { dim: true }, "      ");

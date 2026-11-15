@@ -78,8 +78,14 @@ public sealed class AnswerItemViewModel : ObservableObject
     /// <summary>The owner dismissed this item in the tray (for the current status reply).</summary>
     public bool IsDismissed => session.IsDismissed(Key);
 
-    /// <summary>Answered or dismissed: shown dimmed with a tag, and left out of every count.</summary>
+    /// <summary>Answered or dismissed: left out of every count (a dismissed item is shown dimmed with a tag).</summary>
     public bool IsSettled => isAnswered || IsDismissed;
+
+    /// <summary>
+    /// Shown in the waiting lists: an answered item is hidden, unless its box still holds text (that text
+    /// would be sent, so it stays in view).
+    /// </summary>
+    public bool IsShown => !isAnswered || IsFilled;
 
     /// <summary>"Answered", "Dismissed" or empty.</summary>
     public string TagText => isAnswered ? AnsweredTag : IsDismissed ? DismissedTag : "";
@@ -106,6 +112,7 @@ public sealed class AnswerItemViewModel : ObservableObject
     {
         Raise(nameof(Answer));
         Raise(nameof(IsFilled));
+        Raise(nameof(IsShown));
         Raise(nameof(SendText));
         Raise(nameof(CanSend));
     }
@@ -120,6 +127,7 @@ public sealed class AnswerItemViewModel : ObservableObject
     {
         Raise(nameof(IsDismissed));
         Raise(nameof(IsSettled));
+        Raise(nameof(IsShown));
         Raise(nameof(TagText));
         Raise(nameof(TagToolTip));
         Raise(nameof(CanDismiss));
@@ -142,6 +150,7 @@ public sealed class AnswerFormViewModel : ObservableObject
     private bool isActive;
     private int total;
     private int answeredCount;
+    private int shownCount;
     private string composed = "";
     private string footerText = "";
     private string sendLabel = "";
@@ -179,6 +188,13 @@ public sealed class AnswerFormViewModel : ObservableObject
     {
         get => answeredCount;
         private set => SetField(ref answeredCount, value);
+    }
+
+    /// <summary>Items the waiting lists show (<see cref="AnswerItemViewModel.IsShown"/>).</summary>
+    public int ShownCount
+    {
+        get => shownCount;
+        private set => SetField(ref shownCount, value);
     }
 
     /// <summary>"1 of 3 answered + message · Ctrl+Enter sends" (open items only).</summary>
@@ -359,6 +375,7 @@ public sealed class AnswerFormViewModel : ObservableObject
     {
         Total = Items.Count(i => !i.IsSettled);
         AnsweredCount = Items.Count(i => i.IsFilled && !i.IsSettled);
+        ShownCount = Items.Count(i => i.IsShown);
         var hasMessage = !string.IsNullOrWhiteSpace(session.Draft);
         var counted = Total > 0 || Items.Count == 0
             ? $"{AnsweredCount.ToString(CultureInfo.InvariantCulture)} of {Total.ToString(CultureInfo.InvariantCulture)} answered"

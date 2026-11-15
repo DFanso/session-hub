@@ -79,6 +79,10 @@ public sealed class CardViewModel : ObservableObject
             isPersonal ? ChipTone.Violet : ChipTone.Teal);
         AvatarColor = Palette[(int)(StableHash(session.SessionId) % (uint)Palette.Length)];
         session.PropertyChanged += OnSessionChanged;
+        Answers.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(AnswerFormViewModel.ShownCount)) Raise(nameof(HasWaiting));
+        };
         // An edited answer box changes what would be sent, as an edited message does.
         session.AnswerChanged += (_, _) => SendBox.TextEdited();
         Recompute();
@@ -177,7 +181,8 @@ public sealed class CardViewModel : ObservableObject
 
     public bool HasRemaining => remainingLines.Count > 0;
 
-    public bool HasWaiting => Session.Waiting.Count > 0;
+    /// <summary>Some waiting item is shown (answered items are hidden): else the list says "Nothing.".</summary>
+    public bool HasWaiting => Answers.ShownCount > 0;
 
     /// <summary>Some waiting item is neither answered nor dismissed: the "Waiting on you" box gets the amber edge.</summary>
     public bool HasOpenWaiting => Session.OpenItemCount > 0;
@@ -317,9 +322,6 @@ public sealed class CardViewModel : ObservableObject
         {
             case nameof(SessionViewModel.Name):
                 Raise(nameof(Initials));
-                break;
-            case nameof(SessionViewModel.Waiting):
-                Raise(nameof(HasWaiting));
                 break;
             case nameof(SessionViewModel.OpenItemCount):
                 Raise(nameof(HasOpenWaiting));
