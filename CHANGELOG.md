@@ -20,6 +20,8 @@ messages to a session with SHA-256 delivery checks. First public release on 2026
 
 ### Changed
 
+- Waiting items already answered are hidden in the tray and the TUI instead of shown dimmed; an answered
+  item whose answer box still holds text stays in view. (#18)
 - `hub uninstall` deletes the data folder by default; `--keep-data` keeps it. (#11)
 - The relay treats its input as data only, may use SendMessage alone, stops after two turns, inherits an
   allow-listed environment and runs in safe mode with a spend cap. (#12, #14)
