@@ -232,13 +232,16 @@ the pane shows its state and `o` is needed to override.
 
 Sending runs one fixed relay command, with the message on stdin and cwd `%LOCALAPPDATA%\SessionHub\relay`:
 
-    claude -p -n session-hub-relay --permission-mode <recipient mode> --strict-mcp-config --safe-mode --max-budget-usd 0.25 --tools "SendMessage" --allowedTools "SendMessage" --disallowedTools "<every other built-in tool>" --max-turns 2 --model haiku --no-session-persistence --output-format json
+    claude -p -n session-hub-relay --permission-mode <recipient mode> --strict-mcp-config --setting-sources "" --disable-slash-commands --settings <guard hook> --max-budget-usd 0.25 --tools "SendMessage" --allowedTools "SendMessage" --disallowedTools "<every other built-in tool>" --max-turns 2 --model haiku --no-session-persistence --output-format json
 
 The relay runs in the recipient's current permission mode (from its latest permission-mode record), which can be
 `bypassPermissions`. Its tools are limited to `SendMessage`, every other built-in tool is denied, and it stops after
-two turns, with a spend cap of USD 0.25 per run. Safe mode keeps the profile's CLAUDE.md, skills, plugins, hooks and MCP
-servers away from the relay model; only the login is used. Its prompt treats the stdin text as data to deliver, never as
-instructions. It gets an allow-listed
+two turns, with a spend cap of USD 0.25 per run. It loads no settings from the profile (`--setting-sources ""`), no
+skills or commands and no MCP servers, so the profile's CLAUDE.md, plugins and hooks stay away from the relay model; only
+the login is used. One hook is passed on the command line: a PreToolUse guard (`hub relay-guard`) that allows exactly one
+`SendMessage`, to the session you chose, and blocks every other tool call, so whatever the text says, the relay cannot
+message another session or send twice. Its prompt treats the stdin text as data to deliver, never as instructions. It
+gets an allow-listed
 environment (system paths, the user profile folders, temp and proxy settings, and `CLAUDE_CONFIG_DIR`), so no
 `ANTHROPIC_*` or `CLAUDE_CODE_*` variable can change where the text goes. It never uses `--restricted` and never changes
 `crossSessionInbound`. A relay message that matches no send to the session it landed in is counted
@@ -246,8 +249,9 @@ environment (system paths, the user profile folders, temp and proxy settings, an
 against the real model before a release: it relays plain, multi-line and injection texts to throwaway background
 sessions in the `default`, `bypassPermissions` and `plan` modes. Each plain text must arrive exactly once; an injection
 text may fail safely (not delivered, so the hub shows it as not delivered), and nothing may ever reach a second
-session. It writes a report under `docs/test-reports/`, and the Windows release report fails unless a passing report
-exists for the current relay command and prompt (`bun scripts/relay-eval.ts --check`).
+session. The fixture sessions have no tools. It writes a report under `docs/test-reports/`, and the Windows release
+report fails unless both profiles have a passing report for the current relay command and prompt, made with the
+installed Claude Code version within the last 30 days (`bun scripts/relay-eval.ts --check`).
 
 The tray's only other signals are two named events that carry no data and only the current user can open:
 `Local\SessionHub.Tray.Quit` (set by `hub install` and `hub uninstall`) and `Local\SessionHub.Tray.Show` (a second
