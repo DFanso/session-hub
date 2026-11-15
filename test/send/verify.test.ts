@@ -117,6 +117,29 @@ describe("checkDelivery", () => {
     );
     expect(deliveryMatch(sendFor(text), [peer(text, T0 - 5000)])).toBeNull();
   });
+  test("delivered when the relay changed only the line break after the header", () => {
+    // Seen live: the relay model sent the header and the text with one line break between them.
+    for (const sep of ["\n", "\r\n", "\n\n\n", " \n", "\n \n"]) {
+      const b = `${MESSAGE_HEADER}${sep}${text}`;
+      expect([sep, checkDelivery(sendFor(text), [peer(b, T0 + 5000)], T0 + 6000)]).toEqual([
+        sep,
+        "delivered",
+      ]);
+      expect(deliveryMatch(sendFor(text), [peer(b, T0 + 5000)])).toBe("reflowed");
+    }
+    // The owner's text itself must still match exactly; no line break at all is not a separator.
+    for (const b of [
+      `${MESSAGE_HEADER}\n${text}!`,
+      `${MESSAGE_HEADER}\n ${text}`,
+      `${MESSAGE_HEADER}${text}`,
+      `${MESSAGE_HEADER} ${text}`,
+    ]) {
+      expect([b, checkDelivery(sendFor(text), [peer(b, T0 + 5000)], T0 + 6000)]).toEqual([
+        b,
+        "pending",
+      ]);
+    }
+  });
   test("delivered when the body differs only by CRLF / trailing whitespace", () => {
     const crlf = `${body.replaceAll("\n", "\r\n")}\n  `;
     expect(checkDelivery(sendFor(text), [peer(crlf, T0 + 5000)], T0 + 6000)).toBe("delivered");
@@ -303,6 +326,19 @@ describe("deliveryChecker / expireSends", () => {
       () => T0 + 6000,
       (s) => strays.push(s),
     )("s1", [peer(text, T0 + 5000)]);
+    expect(strays).toEqual([]);
+    expect(store.getMeta("relay_stray_count")).toBeNull();
+  });
+
+  test("a known send whose header line break the relay changed is not stray", () => {
+    const text = "Recommended all are approved";
+    store.createSend(sendFor(text, { state: "pending" }));
+    const strays: unknown[] = [];
+    deliveryChecker(
+      store,
+      () => T0 + 6000,
+      (s) => strays.push(s),
+    )("s1", [peer(`${MESSAGE_HEADER}\n${text}`, T0 + 5000)]);
     expect(strays).toEqual([]);
     expect(store.getMeta("relay_stray_count")).toBeNull();
   });

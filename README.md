@@ -206,7 +206,7 @@ the pane shows its state and `o` is needed to override.
 | --- | --- |
 | pending | The session is busy; the message waits until it takes it into its turn |
 | held | The session cannot take it yet: approve in the session's terminal |
-| delivered | The exact text was found in the recipient's transcript |
+| delivered | The exact text was found in the recipient's transcript (if the relay dropped the header line or changed the line break after it, your text still matched byte for byte, and the detail says so) |
 | expired | Not delivered within 30 minutes |
 | failed | The relay reported an error; nothing is retried automatically, send again |
 
@@ -243,8 +243,11 @@ environment (system paths, the user profile folders, temp and proxy settings, an
 `ANTHROPIC_*` or `CLAUDE_CODE_*` variable can change where the text goes. It never uses `--restricted` and never changes
 `crossSessionInbound`. A relay message that matches no send to the session it landed in is counted
 (`relay_stray_count`), logged, and shown as a warning in the TUI and the tray. `bun run relay-eval` checks the relay
-against the real model before a release: it relays plain, multi-line and injection texts to a throwaway background
-session and passes only when each arrives exactly once and nothing reaches a second session.
+against the real model before a release: it relays plain, multi-line and injection texts to throwaway background
+sessions in the `default`, `bypassPermissions` and `plan` modes. Each plain text must arrive exactly once; an injection
+text may fail safely (not delivered, so the hub shows it as not delivered), and nothing may ever reach a second
+session. It writes a report under `docs/test-reports/`, and the Windows release report fails unless a passing report
+exists for the current relay command and prompt (`bun scripts/relay-eval.ts --check`).
 
 The tray's only other signals are two named events that carry no data and only the current user can open:
 `Local\SessionHub.Tray.Quit` (set by `hub install` and `hub uninstall`) and `Local\SessionHub.Tray.Show` (a second
