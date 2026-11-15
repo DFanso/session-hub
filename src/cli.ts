@@ -17,7 +17,8 @@ const now = () => Date.now();
 
 const deps = realCliDeps({
   entryPath: import.meta.path,
-  runBridge: (link) => runRealBridge(link, { paths: deps.paths, version: deps.version }),
+  runBridge: (link) =>
+    runRealBridge(link, { paths: deps.paths, version: deps.version, guardArgv: deps.guardArgv }),
   runTui: async ({ warning }) => {
     const { paths } = deps;
     const platform = createWindowsPlatform();
@@ -34,6 +35,7 @@ const deps = realCliDeps({
             relayDir: paths.relayDir,
             now,
             log: createLogger(paths.runDir, undefined, RELAY_LOG),
+            guardArgv: deps.guardArgv,
           }),
         focus: (pid: number) => platform.focusSessionWindow(pid),
         buildMessage,

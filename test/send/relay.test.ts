@@ -75,9 +75,12 @@ function deps(over: Record<string, unknown> = {}) {
     claudeCmd: FAKE,
     now: () => Date.now(),
     relayEnvExtra: FAKE_ENV,
+    guardArgv: GUARD_ARGV,
     ...over,
   };
 }
+
+const GUARD_ARGV = ["C:\\hub\\hub.exe", "relay-guard"];
 
 /** The fake CLI's control variables; the relay's allow-list drops everything else. */
 const FAKE_ENV = [
@@ -87,9 +90,18 @@ const FAKE_ENV = [
   "FAKE_RELAY_RESULT",
   "FAKE_RELAY_EXIT",
   "FAKE_RELAY_TRACE",
+  "FAKE_RELAY_GUARD_CLAIM",
 ];
 
-type LogLine = { argv: string[]; stdin: string; configDir: string; cwd: string; envKeys: string[] };
+type LogLine = {
+  argv: string[];
+  stdin: string;
+  configDir: string;
+  cwd: string;
+  envKeys: string[];
+  guardTo?: string;
+  guardMarker?: string;
+};
 const relayLog = (): LogLine[] =>
   existsSync(logPath)
     ? readFileSync(logPath, "utf8")
@@ -163,7 +175,20 @@ describe("send: spawn", () => {
       "--permission-mode",
       "bypassPermissions",
       "--strict-mcp-config",
-      "--safe-mode",
+      "--setting-sources",
+      "",
+      "--disable-slash-commands",
+      "--settings",
+      JSON.stringify({
+        hooks: {
+          PreToolUse: [
+            {
+              matcher: "*",
+              hooks: [{ type: "command", command: '"C:/hub/hub.exe" "relay-guard"' }],
+            },
+          ],
+        },
+      }),
       "--max-budget-usd",
       "0.25",
       "--tools",
@@ -531,6 +556,51 @@ describe("send: trace (LLM-08)", () => {
     expect(row.detail).toContain("plan-marker-552"); // the UI row keeps the reply
     expect(events[0]?.fields?.reason).toBe("not-done");
     expect(JSON.stringify(events)).not.toContain("plan-marker-552");
+  });
+});
+
+describe("send: relay guard", () => {
+  const events: { event: string; fields?: Record<string, unknown> }[] = [];
+  const push = (event: string, fields?: Record<string, unknown>) => events.push({ event, fields });
+  beforeEach(() => {
+    events.length = 0;
+  });
+
+  test("the relay gets the recipient and a per-send marker in the relay folder", async () => {
+    const row = await send({ sessionId: "s1", text: "x" }, deps());
+    const [call] = relayLog();
+    expect(call?.guardTo).toBe("alpha");
+    expect(norm(call?.guardMarker ?? "")).toBe(norm(join(relayDir, `guard-${row.id}.lock`)));
+  });
+
+  test("a claimed marker is logged as guard true and removed", async () => {
+    setEnv({ FAKE_RELAY_GUARD_CLAIM: "1" });
+    const row = await send(
+      { sessionId: "s1", text: "x" },
+      deps({ log: { info: push, warn: push, error: push } }),
+    );
+    expect(events[0]?.fields?.guard).toBe(true);
+    expect(existsSync(join(relayDir, `guard-${row.id}.lock`))).toBe(false);
+  });
+
+  test("a relay that never passed the guard is logged as guard false", async () => {
+    await send(
+      { sessionId: "s1", text: "x" },
+      deps({ log: { info: push, warn: push, error: push } }),
+    );
+    expect(events[0]?.fields?.guard).toBe(false);
+  });
+
+  test("a leftover marker from a crashed run does not count as this run's claim", async () => {
+    // A stale marker for this send's id, there before the relay starts (onCreated runs first).
+    await send(
+      { sessionId: "s1", text: "x" },
+      deps({
+        log: { info: push, warn: push, error: push },
+        onCreated: (r: SendRow) => writeFileSync(join(relayDir, `guard-${r.id}.lock`), ""),
+      }),
+    );
+    expect(events[0]?.fields?.guard).toBe(false);
   });
 });
 

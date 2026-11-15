@@ -114,6 +114,8 @@ function makeDeps(over: Partial<CliDeps> = {}): CliDeps {
     runDaemonForeground: async () => "stopped",
     runTui: async () => {},
     runBridge: async () => 0,
+    guardArgv: ["hub.exe", "relay-guard"],
+    runRelayGuard: async () => 0,
     sleep: async (ms) => advance(ms),
     ...over,
   };

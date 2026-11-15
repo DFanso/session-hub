@@ -11,6 +11,7 @@ import { createLogger } from "../daemon/log.ts";
 import { realClaudeCli } from "../discovery/agents.ts";
 import { createWindowsPlatform } from "../platform/windows/index.ts";
 import { sysbin } from "../platform/windows/sysbin.ts";
+import { claimMarkerFile, runGuard } from "../send/guard.ts";
 import { send } from "../send/relay.ts";
 import { deliveryChecker, expireSends } from "../send/verify.ts";
 import { Store } from "../store/db.ts";
@@ -97,6 +98,17 @@ function removeAfterExit(paths: string[]): void {
   }
 }
 
+/** Pure: how the relay's hook runs `hub relay-guard` from this executable. */
+export function relayGuardArgvFor(opts: {
+  execPath: string;
+  compiled: boolean;
+  entryPath: string;
+}): string[] {
+  return opts.compiled
+    ? [opts.execPath, "relay-guard"]
+    : [opts.execPath, opts.entryPath, "relay-guard"];
+}
+
 /** Pure: how to start the daemon from this executable. */
 export function daemonArgvFor(opts: {
   execPath: string;
@@ -115,7 +127,7 @@ export function daemonArgvFor(opts: {
  */
 export async function runRealBridge(
   link: BridgeLink,
-  opts: { paths: CliPaths; version: string },
+  opts: { paths: CliPaths; version: string; guardArgv: readonly string[] },
 ): Promise<number> {
   const { paths } = opts;
   let store: Store | null = null;
@@ -141,6 +153,7 @@ export async function runRealBridge(
         now: () => Date.now(),
         onCreated,
         log: createLogger(paths.runDir, undefined, RELAY_LOG),
+        guardArgv: opts.guardArgv,
       });
     },
     now: () => Date.now(),
@@ -243,6 +256,19 @@ export function realCliDeps(opts: {
       }),
     runTui: opts.runTui,
     runBridge: opts.runBridge,
+    guardArgv: relayGuardArgvFor({
+      execPath: process.execPath,
+      compiled,
+      entryPath: opts.entryPath,
+    }),
+    runRelayGuard: async () =>
+      runGuard(await Bun.stdin.text(), {
+        env: process.env,
+        claimMarker: claimMarkerFile,
+        err: (line) =>
+          process.stderr.write(`${line}
+`),
+      }),
     sleep: (ms) => Bun.sleep(ms),
   };
 }
