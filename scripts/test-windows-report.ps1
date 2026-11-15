@@ -1,5 +1,6 @@
 <#
-Runs the Windows test suites and writes docs/test-reports/<yyyy-MM-dd>-windows.md.
+Runs the Windows test suites and the relay eval gate, and writes docs/test-reports/<yyyy-MM-dd>-windows.md.
+The gate passes only when bun run relay-eval left a PASS report for the current relay command.
 Exit code is non-zero when any test failed. The report holds versions, counts and the
 tail of the test output only. It must not contain secrets or message text.
 #>
@@ -34,7 +35,8 @@ function Invoke-Suite([string]$name, [string[]]$bunArgs) {
 
 $suites = @(
     (Invoke-Suite 'Windows tests' @('run', 'test:windows')),
-    (Invoke-Suite 'Full suite' @('test'))
+    (Invoke-Suite 'Full suite' @('test')),
+    (Invoke-Suite 'Relay eval gate' @('scripts/relay-eval.ts', '--check'))
 )
 
 $failed = @($suites | Where-Object { $_.ExitCode -ne 0 -or $_.Fail -gt 0 }).Count -gt 0

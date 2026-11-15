@@ -83,6 +83,8 @@ scripts/                   build, install/uninstall helpers, Windows report, GUI
   any session can take the relay's name, so this never decides anything but what is shown and counted.
 - Delivery is "delivered" only on an exact SHA-256 match of the sent text in the recipient sessionId's own
   transcript (peer record from `session-hub-relay`, timestamp after the send started). Never report success otherwise.
+  Two relay-model edits are tolerated, with the owner's text still byte for byte: the header line dropped, or a
+  different line break between the header line and the text (detail says so).
 - Relay recipients come only from the live list, re-read right before the send; refuse when two live sessions share
   the name.
 - A relay is never retried automatically, not even on a provider 429 or overload: the message may already have
@@ -99,7 +101,8 @@ scripts/                   build, install/uninstall helpers, Windows report, GUI
 - Local single-user desktop tool: one daemon (`hubd`) writes the SQLite index; the TUI and the `hub bridge` child of
   the tray read it. No network, no services, no cloud. Deploy target: `hub install` on the owner's PC from a
   reviewed build; each release needs a passing Windows test report (`scripts/test-windows-report.ps1`) and a
-  passing `bun run relay-eval` in each profile (real relays to throwaway `sh-eval-*` background sessions).
+  passing `bun run relay-eval` in each profile (real relays to throwaway `sh-eval-*` background sessions; the report
+  script runs `relay-eval --check`, which fails until a PASS report exists for the current relay command and prompt).
 
 ## Upgrade actions
 - .NET 10 LTS (SDK 10.0.404): supported to 2028-11-14. No action.
