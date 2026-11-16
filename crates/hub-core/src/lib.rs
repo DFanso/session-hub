@@ -9,3 +9,4 @@ pub mod status;
 pub mod store;
 pub mod sysbin;
 pub mod text;
+pub mod view;
