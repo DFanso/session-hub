@@ -61,6 +61,12 @@ jobs:
       - name: Test
         run: cargo test --locked --workspace
 
+      # Changes ACLs of throwaway temp dirs and focuses windows: like TS `bun run test:windows`.
+      - name: Windows suite
+        env:
+          SESSION_HUB_WINDOWS_SUITE: "1"
+        run: cargo test --locked -p hub-platform
+
   rust-macos:
     runs-on: macos-15
     timeout-minutes: 30

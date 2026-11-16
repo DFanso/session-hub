@@ -13,7 +13,7 @@ use hub_core::discovery::{
     AgentsError, ClaudeCli, LiveSession, RealClaudeCli, StopToken, find_claude, is_own_relay,
     parse_agents, parse_status, should_fire, watch_sessions, watch_sessions_with,
 };
-use hub_core::platform::{FakePlatform, Platform};
+use hub_core::platform::{FakePlatform, FocusResult, Platform};
 use hub_core::store::LiveStatus;
 use serde_json::{Value, json};
 use tempfile::TempDir;
@@ -264,6 +264,22 @@ fn stop_token_wait_timeout_returns_false_until_stopped_then_true() {
 }
 
 #[test]
+fn fake_platform_rest_of_the_interface() {
+    let t = tmp("hub-fakeplat-");
+    let fp = FakePlatform;
+    fp.ensure_private_dir(t.path()).unwrap();
+    assert!(fp.is_private_dir(t.path()).unwrap());
+    assert!(fp.process_alive(std::process::id()));
+    assert!(!fp.process_alive(0));
+    assert_eq!(fp.process_start_time(std::process::id()), None);
+    assert_eq!(fp.process_image_path(std::process::id()), None);
+    assert_eq!(
+        fp.focus_session_window(std::process::id()),
+        FocusResult::Unsupported
+    );
+}
+
+#[test]
 fn fake_platform_kill_tree_really_kills_and_reports_a_missing_pid() {
     let exe = env!("CARGO_BIN_EXE_fake-claude");
     let mut child = Command::new(exe)
@@ -283,6 +299,30 @@ fn fake_platform_kill_tree_really_kills_and_reports_a_missing_pid() {
 /// Passes env to the fake child through the spawn hook, so no test touches the process env.
 struct EnvPlatform(HashMap<String, String>);
 
+/// Everything but spawn and kill goes to [`FakePlatform`].
+macro_rules! delegate_rest_to_fake {
+    () => {
+        fn ensure_private_dir(&self, dir: &Path) -> std::io::Result<()> {
+            FakePlatform.ensure_private_dir(dir)
+        }
+        fn is_private_dir(&self, dir: &Path) -> std::io::Result<bool> {
+            FakePlatform.is_private_dir(dir)
+        }
+        fn process_alive(&self, pid: u32) -> bool {
+            FakePlatform.process_alive(pid)
+        }
+        fn process_start_time(&self, pid: u32) -> Option<i64> {
+            FakePlatform.process_start_time(pid)
+        }
+        fn process_image_path(&self, pid: u32) -> Option<PathBuf> {
+            FakePlatform.process_image_path(pid)
+        }
+        fn focus_session_window(&self, pid: u32) -> FocusResult {
+            FakePlatform.focus_session_window(pid)
+        }
+    };
+}
+
 impl Platform for EnvPlatform {
     fn spawn_hidden(&self, cmd: &mut Command) {
         for (k, v) in &self.0 {
@@ -292,6 +332,22 @@ impl Platform for EnvPlatform {
     fn kill_tree(&self, pid: u32) -> std::io::Result<()> {
         FakePlatform.kill_tree(pid)
     }
+    delegate_rest_to_fake!();
+}
+
+/// A tree kill that reports success but kills nothing (ruling R9).
+struct NoopKillPlatform(HashMap<String, String>);
+
+impl Platform for NoopKillPlatform {
+    fn spawn_hidden(&self, cmd: &mut Command) {
+        for (k, v) in &self.0 {
+            cmd.env(k, v);
+        }
+    }
+    fn kill_tree(&self, _pid: u32) -> std::io::Result<()> {
+        Ok(())
+    }
+    delegate_rest_to_fake!();
 }
 
 fn fake_cli(env: &[(&str, &str)]) -> RealClaudeCli {
@@ -416,6 +472,28 @@ fn real_cli_bad_json_and_non_array_error() {
         let e = fake_cli(&[("FAKE_CLAUDE_MODE", mode)]).agents(t.path(), &StopToken::new());
         assert_eq!(text(e), "claude agents returned invalid JSON");
     }
+}
+
+/// Ruling R9: the root is killed directly after the tree kill, even when the tree kill returned Ok
+/// without killing anything, so reaping it cannot block (the fake would sleep 30 s).
+#[test]
+fn real_cli_kill_still_ends_the_root_when_kill_tree_reports_ok_but_kills_nothing() {
+    let t = tmp("hub-agents-");
+    let cli = RealClaudeCli {
+        exe: PathBuf::from(env!("CARGO_BIN_EXE_fake-claude")),
+        platform: Arc::new(NoopKillPlatform(HashMap::from([(
+            "FAKE_CLAUDE_MODE".to_string(),
+            "sleep-forever".to_string(),
+        )]))),
+    };
+    let t0 = Instant::now();
+    let e = cli.agents_with_timeout(t.path(), &StopToken::new(), Duration::from_millis(300));
+    assert_eq!(text(e), "claude agents timed out");
+    assert!(
+        t0.elapsed() < Duration::from_secs(5),
+        "took {:?}",
+        t0.elapsed()
+    );
 }
 
 #[test]

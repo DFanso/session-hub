@@ -220,9 +220,10 @@ const POLL: Duration = Duration::from_millis(25);
 
 impl RealClaudeCli {
     fn kill(&self, child: &mut Child) {
-        if self.platform.kill_tree(child.id()).is_err() {
-            let _ = child.kill();
-        }
+        let _ = self.platform.kill_tree(child.id());
+        // Always, whatever kill_tree reported (ruling R9): a tree kill that returned Ok but left the
+        // root alive must not make the wait below block. An error here means it is already gone.
+        let _ = child.kill();
         // Reap it; the child is dead or dying, so this returns at once.
         let _ = child.wait();
     }

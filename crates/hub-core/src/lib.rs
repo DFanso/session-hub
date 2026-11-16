@@ -7,4 +7,5 @@ pub mod security;
 pub mod send;
 pub mod status;
 pub mod store;
+pub mod sysbin;
 pub mod text;
