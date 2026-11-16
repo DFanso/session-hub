@@ -11,7 +11,7 @@ use sha2::{Digest, Sha256};
 use crate::config::{
     DELIVERY_WINDOW_MS, EVAL_SESSION_PREFIX, MESSAGE_HEADER, RELAY_NAME, RETENTION_MS,
 };
-use crate::daemon::log::{LogFields, LogValue, Logger};
+use crate::daemon::log::{LogValue, Logger};
 use crate::ingest::records::Classified;
 use crate::store::{SendRow, SendState, Store, StoreError};
 use crate::text::is_js_space;
@@ -271,15 +271,6 @@ fn str_field(k: &'static str, v: &str) -> (&'static str, LogValue) {
     (k, LogValue::Str(v.to_string()))
 }
 
-fn log_store_error(log: &dyn Logger, session_id: &str, e: &StoreError) {
-    // Store errors name SQLite conditions, never message text.
-    let fields: LogFields = vec![
-        str_field("sessionId", session_id),
-        str_field("msg", &e.to_string()),
-    ];
-    log.error("delivery_check_failed", fields);
-}
-
 /// Flags every relay message in these records whose text matches no send made to this session
 /// within retention, in any state (LLM-01): the relay model wrote to a session or a text the owner
 /// did not send. Counted in meta `relay_stray_count`, with the time of the last one in
@@ -357,20 +348,16 @@ fn js_number(v: &str) -> Option<i64> {
 /// proves at most one send, so two overridden identical messages need two records. A held-notice
 /// names no message, so it applies only to the session's newest pending send. Every change is a
 /// conditional store transition, so a concurrent writer can never undo delivered. The store is
-/// passed per call (the collector thread owns the only `Store`); a store error is logged and the
-/// pass for that session ends, to be repeated with the next records.
+/// passed per call (the collector thread owns the only `Store`). A store error ends the check
+/// and is returned, as TS throws it: the collector logs it as `on_records_failed` and counts it.
 pub fn delivery_checker(
     now: Arc<dyn Fn() -> i64 + Send + Sync>,
     log: Arc<dyn Logger>,
-) -> impl FnMut(&Store, &str, &[Classified]) {
+) -> impl FnMut(&Store, &str, &[Classified]) -> Result<(), StoreError> {
     move |store, session_id, records| {
         let t = now();
-        if let Err(e) = report_strays(store, log.as_ref(), session_id, records, t) {
-            log_store_error(log.as_ref(), session_id, &e);
-        }
-        if let Err(e) = verify_sends(store, session_id, records, t) {
-            log_store_error(log.as_ref(), session_id, &e);
-        }
+        report_strays(store, log.as_ref(), session_id, records, t)?;
+        verify_sends(store, session_id, records, t)
     }
 }
 

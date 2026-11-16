@@ -423,7 +423,8 @@ fn fixture() -> Fixture {
 
 impl Fixture {
     fn checker(&self, now: i64) -> impl FnMut(&Store, &str, &[Classified]) + use<> {
-        delivery_checker(Arc::new(move || now), self.log.clone())
+        let mut check = delivery_checker(Arc::new(move || now), self.log.clone());
+        move |store, id, records| check(store, id, records).expect("delivery check")
     }
 
     /// The row's state through a separate connection, as another process would read it.

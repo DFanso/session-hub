@@ -4,7 +4,9 @@ use std::collections::HashMap;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
-use hub_core::daemon::transcripts::{first_cwd, is_session_id, list_transcripts, transcript_index};
+use hub_core::daemon::transcripts::{
+    first_cwd, is_session_id, list_transcripts, node_normalize, transcript_index,
+};
 use tempfile::TempDir;
 
 const SID: &str = "11111111-2222-4333-8444-555555555555";
@@ -220,4 +222,38 @@ fn first_cwd_looks_only_at_the_first_256_kb() {
 fn first_cwd_of_a_missing_file_is_an_error() {
     let d = tmp();
     assert!(first_cwd(&d.path().join("missing.jsonl")).is_err());
+}
+
+#[test]
+fn node_normalize_is_path_normalize() {
+    let n = |s: &str| node_normalize(Path::new(s)).to_string_lossy().into_owned();
+    if cfg!(windows) {
+        assert_eq!(n("C:/Users/u/.claude"), r"C:\Users\u\.claude");
+        assert_eq!(n(r"C:\a\.\b\..\c"), r"C:\a\c");
+        assert_eq!(n("C:/.."), r"C:\");
+        assert_eq!(n(r"\\server\share\x"), r"\\server\share\x");
+    } else {
+        assert_eq!(n("/home/u//.claude/./x"), "/home/u/.claude/x");
+        assert_eq!(n("/a/b/../c"), "/a/c");
+        assert_eq!(n("/.."), "/");
+    }
+    assert_eq!(n("a/../.."), "..");
+    assert_eq!(n("./"), ".");
+}
+
+#[test]
+fn listed_paths_use_the_normalised_profile_dir() {
+    let d = tmp();
+    let p = d
+        .path()
+        .join("projects")
+        .join("C--x")
+        .join(format!("{SID}.jsonl"));
+    write(&p, "{}\n");
+    let odd = if cfg!(windows) {
+        d.path().to_string_lossy().replace('\\', "/")
+    } else {
+        format!("{}/.//", d.path().to_string_lossy())
+    };
+    assert_eq!(list_transcripts(Path::new(&odd)).unwrap(), vec![p]);
 }

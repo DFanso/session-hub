@@ -2,13 +2,15 @@
 //! process group so the group can be killed; there is no window focus.
 mod privacy;
 mod process;
+mod signals;
 
 use std::io;
 use std::os::unix::process::CommandExt;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-use hub_core::platform::{FocusResult, Platform};
+use hub_core::discovery::StopToken;
+use hub_core::platform::{FocusResult, Platform, SignalGuard};
 
 #[derive(Debug, Default, Clone, Copy)]
 pub struct UnixPlatform;
@@ -45,5 +47,9 @@ impl Platform for UnixPlatform {
 
     fn focus_session_window(&self, _pid: u32) -> FocusResult {
         FocusResult::Unsupported
+    }
+
+    fn stop_on_signals(&self, stop: StopToken) -> io::Result<SignalGuard> {
+        signals::stop_on_signals(stop)
     }
 }

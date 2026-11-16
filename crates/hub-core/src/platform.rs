@@ -4,6 +4,8 @@ use std::io;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
+use crate::discovery::StopToken;
+
 /// What bringing a session's terminal window to the front did. It only ever focuses a window; it
 /// never types into it or answers anything.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -14,6 +16,35 @@ pub enum FocusResult {
     NotFound { reason: String },
     /// This OS has no focus support.
     Unsupported,
+}
+
+/// Removes stop-signal handlers when dropped (see [`Platform::stop_on_signals`]).
+pub struct SignalGuard(Option<Box<dyn FnOnce() + Send>>);
+
+impl SignalGuard {
+    /// A guard that runs `remove` once, when dropped.
+    pub fn new(remove: impl FnOnce() + Send + 'static) -> SignalGuard {
+        SignalGuard(Some(Box::new(remove)))
+    }
+
+    /// A guard with nothing to remove.
+    pub fn none() -> SignalGuard {
+        SignalGuard(None)
+    }
+}
+
+impl Drop for SignalGuard {
+    fn drop(&mut self) {
+        if let Some(remove) = self.0.take() {
+            remove();
+        }
+    }
+}
+
+impl std::fmt::Debug for SignalGuard {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("SignalGuard")
+    }
 }
 
 pub trait Platform: Send + Sync {
@@ -37,6 +68,13 @@ pub trait Platform: Send + Sync {
     /// Brings the terminal window that hosts this pid (or its nearest ancestor with a window) to the
     /// front.
     fn focus_session_window(&self, pid: u32) -> FocusResult;
+    /// Until the guard is dropped, Ctrl-C and SIGTERM (on Windows: Ctrl-C, Ctrl-Break and closing
+    /// the console, log-off, shutdown) call `stop.stop()` instead of ending the process, so the
+    /// daemon stops cleanly and releases its lock. The default (the fake) installs nothing.
+    fn stop_on_signals(&self, stop: StopToken) -> io::Result<SignalGuard> {
+        let _ = stop;
+        Ok(SignalGuard::none())
+    }
 }
 
 /// True for a pid no tree kill may target: this process, pid 0 (on Unix our own process group, on

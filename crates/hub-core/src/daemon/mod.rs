@@ -1,7 +1,9 @@
-//! The background daemon's building blocks: the file logger, the single-instance lock, transcript
-//! listing and the ingest pass. The collector loop and the run arrive in later tasks.
+//! The background daemon: the file logger, the single-instance lock, transcript listing, the
+//! ingest pass, the collector loop and `daemon run`.
 
+pub mod collector;
 pub mod ingest_pass;
 pub mod lock;
 pub mod log;
+pub mod run;
 pub mod transcripts;

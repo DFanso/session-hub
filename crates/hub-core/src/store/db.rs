@@ -442,6 +442,13 @@ impl Store {
         })
     }
 
+    /// How long a statement waits for another connection's write lock before failing with
+    /// `SQLITE_BUSY` (5 s after open). Tests shorten it.
+    pub fn set_busy_timeout(&self, d: std::time::Duration) -> Result<(), StoreError> {
+        self.conn.busy_timeout(d)?;
+        Ok(())
+    }
+
     pub fn close(self) -> Result<(), StoreError> {
         self.conn.close().map_err(|(_, e)| StoreError::Sqlite(e))
     }

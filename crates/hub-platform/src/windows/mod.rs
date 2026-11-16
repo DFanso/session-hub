@@ -6,6 +6,8 @@ pub mod acl;
 mod focus;
 #[cfg(windows)]
 mod process;
+#[cfg(windows)]
+mod signals;
 
 #[cfg(windows)]
 pub use real::WindowsPlatform;
@@ -19,11 +21,12 @@ mod real {
     use std::process::Command;
     use std::time::Duration;
 
-    use hub_core::platform::{FocusResult, Platform};
+    use hub_core::discovery::StopToken;
+    use hub_core::platform::{FocusResult, Platform, SignalGuard};
     use hub_core::sysbin;
     use windows_sys::Win32::System::Threading::{CREATE_NEW_PROCESS_GROUP, CREATE_NO_WINDOW};
 
-    use super::{acl, focus, process};
+    use super::{acl, focus, process, signals};
 
     /// `taskkill` still running after this is killed and the tree kill reports failure (TS
     /// `TASKKILL_BOUND_MS`).
@@ -87,6 +90,10 @@ mod real {
 
         fn focus_session_window(&self, pid: u32) -> FocusResult {
             focus::focus_session_window(pid)
+        }
+
+        fn stop_on_signals(&self, stop: StopToken) -> io::Result<SignalGuard> {
+            signals::stop_on_signals(stop)
         }
     }
 }

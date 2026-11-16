@@ -27,7 +27,7 @@ pub const MAX_UNRECOGNIZED_TYPES: usize = 10;
 /// Number.MAX_SAFE_INTEGER, the largest stored count read back.
 const MAX_SAFE_INTEGER: f64 = 9_007_199_254_740_991.0;
 
-/// The per-batch records hook (`send::delivery_checker` in the daemon).
+/// The per-batch records hook (in the daemon, the collector's wrapper of `send::delivery_checker`).
 pub type OnRecords<'a> = &'a mut dyn FnMut(&Store, &str, &[Classified]);
 
 pub struct IngestCtx<'a> {

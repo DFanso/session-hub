@@ -5,7 +5,7 @@
 use std::collections::HashMap;
 use std::fs::{self, File};
 use std::io::{self, Read};
-use std::path::{Path, PathBuf};
+use std::path::{Component, Path, PathBuf};
 
 use serde_json::Value;
 
@@ -45,12 +45,39 @@ fn never_stat(name: &[u8]) -> bool {
     name.ends_with(b".key")
 }
 
-/// `<profile>/projects/<one level>/*.jsonl` files. Never recurses deeper, never follows a symlink,
-/// never opens a file. A missing or unreadable `projects` folder lists nothing, and an unreadable
-/// project folder is skipped, as in TS; the `Result` is never an error today.
+/// Lexical normalisation like Node's `path.normalize`: separators become this OS's (`/` turns into
+/// `\` on Windows), repeated separators and `.` segments go, and `..` drops the segment before it.
+/// TS builds every transcript path with `path.join`, which normalises like this, and the path is
+/// the key of the `tails` table both daemons share.
+pub fn node_normalize(p: &Path) -> PathBuf {
+    let mut out = PathBuf::new();
+    for c in p.components() {
+        match c {
+            Component::CurDir => {}
+            Component::ParentDir => match out.components().next_back() {
+                Some(Component::Normal(_)) => {
+                    out.pop();
+                }
+                // `/..` is `/`; a relative path keeps its leading `..`.
+                Some(Component::RootDir | Component::Prefix(_)) => {}
+                _ => out.push(".."),
+            },
+            other => out.push(other.as_os_str()),
+        }
+    }
+    if out.as_os_str().is_empty() {
+        out.push(".");
+    }
+    out
+}
+
+/// `<profile>/projects/<one level>/*.jsonl` files, as `path.join(profile, "projects", dir, file)`
+/// (see [`node_normalize`]). Never recurses deeper, never follows a symlink, never opens a file. A
+/// missing or unreadable `projects` folder lists nothing, and an unreadable project folder is
+/// skipped, as in TS; the `Result` is never an error today.
 pub fn list_transcripts(profile_dir: &Path) -> io::Result<Vec<PathBuf>> {
     let mut out = Vec::new();
-    let Ok(dirs) = fs::read_dir(profile_dir.join("projects")) else {
+    let Ok(dirs) = fs::read_dir(node_normalize(profile_dir).join("projects")) else {
         return Ok(out);
     };
     for d in dirs.flatten() {

@@ -32,10 +32,27 @@ pub struct WatchHandle {
     closed: Arc<AtomicBool>,
     watcher: Option<RecommendedWatcher>,
     thread: Option<JoinHandle<()>>,
+    on_drop: Option<Box<dyn FnOnce() + Send>>,
+}
+
+impl WatchHandle {
+    /// A handle that watches nothing and runs `on_drop` when dropped: the stand-in a fake watch
+    /// (tests) returns.
+    pub fn from_drop(on_drop: impl FnOnce() + Send + 'static) -> WatchHandle {
+        WatchHandle {
+            closed: Arc::new(AtomicBool::new(false)),
+            watcher: None,
+            thread: None,
+            on_drop: Some(Box::new(on_drop)),
+        }
+    }
 }
 
 impl Drop for WatchHandle {
     fn drop(&mut self) {
+        if let Some(f) = self.on_drop.take() {
+            f();
+        }
         self.closed.store(true, Ordering::SeqCst);
         // Dropping the watcher drops its event sender, which ends the debounce thread.
         self.watcher.take();
@@ -140,5 +157,6 @@ pub fn watch_sessions_with(
         closed,
         watcher: Some(watcher),
         thread: Some(thread),
+        on_drop: None,
     })
 }
