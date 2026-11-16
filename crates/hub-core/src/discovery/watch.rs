@@ -142,13 +142,10 @@ pub fn watch_sessions_with(
             if thread_closed.load(Ordering::SeqCst) {
                 return;
             }
-            if let Err(p) = catch_unwind(AssertUnwindSafe(&on_change)) {
-                let msg = p
-                    .downcast_ref::<&str>()
-                    .map(|s| (*s).to_string())
-                    .or_else(|| p.downcast_ref::<String>().cloned())
-                    .unwrap_or_else(|| "on_change panicked".to_string());
-                on_error(msg);
+            // Fixed text: the panic payload may quote data the callback held, and it would reach
+            // daemon.log through `watch_error`.
+            if catch_unwind(AssertUnwindSafe(&on_change)).is_err() {
+                on_error("on_change panicked".to_string());
             }
         }
     });

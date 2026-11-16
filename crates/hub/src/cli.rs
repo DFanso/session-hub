@@ -131,3 +131,12 @@ pub fn run(args: Vec<OsString>, deps: &CliDeps) -> i32 {
         Some(_) => usage(),
     }
 }
+
+/// `hubw` (no console window): like [`run`], except that no arguments is a usage error with no
+/// output, because a TUI or a message nobody can see is no use. Returns the exit code.
+pub fn run_windowless(args: Vec<OsString>, deps: &CliDeps) -> i32 {
+    if args.is_empty() {
+        return 2;
+    }
+    run(args, deps)
+}

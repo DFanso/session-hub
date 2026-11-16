@@ -57,7 +57,12 @@ impl Env {
     }
 
     fn cmd(&self, args: &[&str]) -> Command {
-        let mut c = Command::new(HUB);
+        self.cmd_of(HUB, args)
+    }
+
+    /// `exe` with the temp environment (`hub` or `hubw`).
+    fn cmd_of(&self, exe: &str, args: &[&str]) -> Command {
+        let mut c = Command::new(exe);
         c.args(args)
             .env_clear()
             .env("PATH", &self.bin)
@@ -284,4 +289,47 @@ fn tui_start_warning_names_the_daemon_log() {
         w.starts_with("The daemon is not running and did not start; the list may be stale. See ")
     );
     assert!(w.ends_with("daemon.log"));
+}
+
+#[test]
+fn windowless_with_no_arguments_prints_nothing_and_exits_2() {
+    use std::sync::{Arc, Mutex};
+    let said: Arc<Mutex<Vec<String>>> = Arc::default();
+    let (o, e) = (said.clone(), said.clone());
+    let platform = hub_platform::native();
+    let deps = hub::cli::CliDeps {
+        // The TUI path would report this config error and exit 1.
+        config: Err("no config in this test".into()),
+        cli: Arc::new(hub_core::discovery::RealClaudeCli {
+            exe: PathBuf::from("claude-not-run"),
+            platform: platform.clone(),
+        }),
+        platform,
+        exe: PathBuf::from(HUB),
+        out: Box::new(move |t| o.lock().unwrap().push(t.to_string())),
+        err: Box::new(move |t| e.lock().unwrap().push(t.to_string())),
+    };
+    assert_eq!(hub::cli::run_windowless(Vec::new(), &deps), 2);
+    assert!(said.lock().unwrap().is_empty());
+    // Any command is passed on unchanged.
+    assert_eq!(hub::cli::run_windowless(vec!["--version".into()], &deps), 0);
+    assert_eq!(
+        *said.lock().unwrap(),
+        [format!("hub {}", env!("CARGO_PKG_VERSION"))]
+    );
+}
+
+/// `hubw` has no console: with no arguments it must not start the daemon or a TUI nobody sees.
+#[cfg(windows)]
+#[test]
+fn hubw_with_no_arguments_exits_2_and_starts_nothing() {
+    let e = Env::new();
+    let o = e.cmd_of(env!("CARGO_BIN_EXE_hubw"), &[]).output().unwrap();
+    assert_eq!(code(&o), 2);
+    assert_eq!(
+        (text(&o.stdout), text(&o.stderr)),
+        (String::new(), String::new())
+    );
+    let s = e.hub(&["daemon", "status"]);
+    assert_eq!((code(&s), text(&s.stdout)), (3, "STOPPED".to_string()));
 }

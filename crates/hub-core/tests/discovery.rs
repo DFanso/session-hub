@@ -711,7 +711,7 @@ fn watch_a_panicking_on_change_is_routed_to_on_error() {
     let e2 = errs.clone();
     let h = watch_sessions_with(
         p.root.path(),
-        || panic!("boom"),
+        || panic!("boom with message text"),
         move |m| e2.lock().unwrap().push(m),
     )
     .unwrap();
@@ -722,7 +722,8 @@ fn watch_a_panicking_on_change_is_routed_to_on_error() {
         std::thread::sleep(Duration::from_millis(20));
     }
     drop(h);
-    assert_eq!(*errs.lock().unwrap(), ["boom"]);
+    // Fixed text: the payload may carry anything the callback held (it reaches daemon.log).
+    assert_eq!(*errs.lock().unwrap(), ["on_change panicked"]);
 }
 
 #[test]

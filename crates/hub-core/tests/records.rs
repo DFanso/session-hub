@@ -56,8 +56,10 @@ fn lone_low_surrogate_becomes_replacement_char() {
 
 #[test]
 fn valid_surrogate_pair_is_unchanged() {
-    assert_eq!(owner_text(&user(r"😀")), "\u{1F600}");
-    assert_eq!(owner_text(&user(r"😀")), "\u{1F600}");
+    // The escaped pair (a writer that escapes non-ASCII) and the literal character.
+    assert_eq!(owner_text(&user(r"\ud83d\ude00")), "\u{1F600}");
+    assert_eq!(owner_text(&user(r"a\uD83D\uDE00b")), "a\u{1F600}b");
+    assert_eq!(owner_text(&user("😀")), "\u{1F600}");
 }
 
 #[test]

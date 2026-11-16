@@ -69,8 +69,8 @@ pub trait Platform: Send + Sync {
     /// front.
     fn focus_session_window(&self, pid: u32) -> FocusResult;
     /// Until the guard is dropped, Ctrl-C and SIGTERM (on Windows: Ctrl-C, Ctrl-Break and closing
-    /// the console, log-off, shutdown) call `stop.stop()` instead of ending the process, so the
-    /// daemon stops cleanly and releases its lock. The default (the fake) installs nothing.
+    /// the console) call `stop.stop()` instead of ending the process, so the daemon stops cleanly
+    /// and releases its lock. The default (the fake) installs nothing.
     fn stop_on_signals(&self, stop: StopToken) -> io::Result<SignalGuard> {
         let _ = stop;
         Ok(SignalGuard::none())

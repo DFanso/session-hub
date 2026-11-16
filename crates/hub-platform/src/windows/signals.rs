@@ -1,8 +1,10 @@
-//! Ctrl-C, Ctrl-Break and closing the console (also log-off and shutdown) stop the daemon cleanly
-//! instead of ending the process. The console handler runs on a thread Windows creates; it bumps a
-//! counter that a small thread turns into `stop.stop()`. For close, log-off and shutdown the
-//! process ends when the handler returns, so it waits (up to 4.5 s) for the daemon to finish and
-//! the guard to drop. A windowless `hubw.exe` has no console and gets none of these events.
+//! Ctrl-C, Ctrl-Break and closing the console stop the daemon cleanly instead of ending the
+//! process. The console handler runs on a thread Windows creates; it bumps a counter that a small
+//! thread turns into `stop.stop()`. On close the process ends when the handler returns, so it waits
+//! (up to 4.5 s) for the daemon to finish and the guard to drop. Log-off and shutdown events are
+//! handled the same way, but Windows does not send them to a process that loads user32.dll, which
+//! `hub.exe` does, so they are not relied on. A windowless `hubw.exe` has no console and gets none
+//! of these events.
 use std::io;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
