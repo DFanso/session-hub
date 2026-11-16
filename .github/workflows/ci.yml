@@ -31,6 +31,9 @@ jobs:
       - name: Install
         run: bun install --frozen-lockfile --ignore-scripts
 
+      - name: Rust goldens up to date
+        run: bun scripts/rust-goldens.ts && git diff --exit-code crates/hub-core/tests/goldens
+
       - name: Lint
         run: bun run lint
 

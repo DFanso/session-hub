@@ -9,3 +9,7 @@ license.workspace = true
 workspace = true
 
 [dependencies]
+
+[dev-dependencies]
+serde.workspace = true
+serde_json.workspace = true
