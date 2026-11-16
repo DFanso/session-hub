@@ -174,15 +174,35 @@ fn foreign(_: &LockInfo) -> DaemonIdentity {
     DaemonIdentity::Foreign
 }
 
-/// A stand-in collector: records that it ran, then plays a signal and returns once stopped.
-fn until_signal(platform: Arc<TestPlatform>, ran: Arc<AtomicUsize>) -> Option<Run> {
+/// What an injected collector saw. An assert inside it cannot fail a test: `daemon_run` catches
+/// the panic and returns `Stopped`. So the closures only write notes, and the test asserts on them
+/// after `daemon_run` returns.
+type Notes = Arc<Mutex<Vec<String>>>;
+
+fn read(notes: &Notes) -> Vec<String> {
+    notes.lock().unwrap().clone()
+}
+
+/// A stand-in collector: notes whether the token was already stopped, plays a signal, and notes
+/// whether that stopped it.
+fn until_signal(platform: Arc<TestPlatform>, notes: Notes) -> Option<Run> {
     Some(Box::new(move |d: DaemonDeps| {
-        ran.fetch_add(1, SeqCst);
-        assert!(!d.stop.is_stopped());
+        let mut n = vec![format!("running stopped={}", d.stop.is_stopped())];
         platform.raise();
-        assert!(d.stop.wait_timeout(Duration::from_secs(2)));
+        let stopped = d.stop.wait_timeout(Duration::from_secs(2));
+        n.push(format!("signal stopped={stopped}"));
+        notes.lock().unwrap().extend(n);
         Ok(())
     }))
+}
+
+const SIGNALLED: [&str; 2] = ["running stopped=false", "signal stopped=true"];
+
+/// `Stopped`, and no panic was caught on the way (a failed check in an injected collector panics).
+fn assert_stopped_clean(e: &Env, out: &RunOutcome) {
+    assert_eq!(*out, RunOutcome::Stopped);
+    let log = e.log();
+    assert!(!log.contains(r#""event":"panic""#), "{log}");
 }
 
 #[test]
@@ -216,10 +236,10 @@ fn a_lock_naming_another_program_or_a_reused_pid_does_not_stop_the_start() {
     for lock in ["66", &format!("66 {T0}")] {
         let e = env();
         e.write_lock(lock);
-        let ran = Arc::new(AtomicUsize::new(0));
-        let out = daemon_run(e.deps(foreign, until_signal(e.platform.clone(), ran.clone())));
-        assert_eq!(out, RunOutcome::Stopped, "{lock}");
-        assert_eq!(ran.load(SeqCst), 1);
+        let notes = Notes::default();
+        let out = daemon_run(e.deps(foreign, until_signal(e.platform.clone(), notes.clone())));
+        assert_stopped_clean(&e, &out);
+        assert_eq!(read(&notes), SIGNALLED, "{lock}");
     }
 }
 
@@ -228,13 +248,13 @@ fn a_lock_naming_a_live_pid_that_cannot_be_verified_means_already_running() {
     let _s = serial();
     let e = env();
     e.write_lock("66");
-    let ran = Arc::new(AtomicUsize::new(0));
+    let notes = Notes::default();
     let out = daemon_run(e.deps(
         |_| DaemonIdentity::Unknown,
-        until_signal(e.platform.clone(), ran.clone()),
+        until_signal(e.platform.clone(), notes.clone()),
     ));
     assert_eq!(out, RunOutcome::AlreadyRunning);
-    assert_eq!(ran.load(SeqCst), 0);
+    assert!(read(&notes).is_empty());
 }
 
 #[test]
@@ -298,9 +318,10 @@ fn a_daemon_that_runs_clears_the_stop_marker() {
     let run = e.config.run_dir();
     fs::create_dir_all(&run).unwrap();
     fs::write(run.join(DAEMON_STOPPED_FILE), "").unwrap();
-    let ran = Arc::new(AtomicUsize::new(0));
-    let out = daemon_run(e.deps(foreign, until_signal(e.platform.clone(), ran)));
-    assert_eq!(out, RunOutcome::Stopped);
+    let notes = Notes::default();
+    let out = daemon_run(e.deps(foreign, until_signal(e.platform.clone(), notes.clone())));
+    assert_stopped_clean(&e, &out);
+    assert_eq!(read(&notes), SIGNALLED);
     assert!(!run.join(DAEMON_STOPPED_FILE).exists());
 }
 
@@ -311,6 +332,8 @@ fn sets_up_dirs_runs_the_collector_until_a_signal_then_cleans_up() {
     type Seen = Arc<Mutex<Option<(PathBuf, PathBuf, bool, bool)>>>;
     let seen: Seen = Arc::default();
     let s = seen.clone();
+    let notes = Notes::default();
+    let n = notes.clone();
     let platform = e.platform.clone();
     let out = daemon_run(e.deps(
         foreign,
@@ -321,13 +344,17 @@ fn sets_up_dirs_runs_the_collector_until_a_signal_then_cleans_up() {
                 d.on_records.is_some(),
                 d.expire.is_some(),
             ));
-            assert_eq!(platform.installed(), 1);
+            n.lock()
+                .unwrap()
+                .push(format!("handlers={}", platform.installed()));
             platform.raise();
-            assert!(d.stop.wait_timeout(Duration::from_secs(2)));
+            let stopped = d.stop.wait_timeout(Duration::from_secs(2));
+            n.lock().unwrap().push(format!("signal stopped={stopped}"));
             Ok(())
         })),
     ));
-    assert_eq!(out, RunOutcome::Stopped);
+    assert_stopped_clean(&e, &out);
+    assert_eq!(read(&notes), ["handlers=1", "signal stopped=true"]);
     let c = &e.config;
     assert_eq!(
         e.platform.calls().first().map(String::as_str),
@@ -407,20 +434,30 @@ fn state(store: &Store, id: i64) -> SendState {
 fn the_expire_task_expires_overdue_sends_and_logs_the_count() {
     let _s = serial();
     let e = env();
+    let seen: Arc<Mutex<Vec<SendState>>> = Arc::default();
+    let s = seen.clone();
     let out = daemon_run(e.deps(
         foreign,
-        Some(Box::new(|mut d: DaemonDeps| {
+        Some(Box::new(move |mut d: DaemonDeps| {
             let old = pending_send(&d.store, "old", T0 - 31 * 60_000);
             let fresh = pending_send(&d.store, "fresh", T0 - 60_000);
-            (d.expire.as_mut().unwrap())(&d.store);
-            assert_eq!(state(&d.store, old), SendState::Expired);
-            assert_eq!(state(&d.store, fresh), SendState::Pending);
+            let Some(expire) = d.expire.as_mut() else {
+                return Ok(());
+            };
+            expire(&d.store);
             // Nothing more to expire: no line.
-            (d.expire.as_mut().unwrap())(&d.store);
+            expire(&d.store);
+            s.lock()
+                .unwrap()
+                .extend([state(&d.store, old), state(&d.store, fresh)]);
             Ok(())
         })),
     ));
-    assert_eq!(out, RunOutcome::Stopped);
+    assert_stopped_clean(&e, &out);
+    assert_eq!(
+        *seen.lock().unwrap(),
+        [SendState::Expired, SendState::Pending]
+    );
     let log = e.log();
     assert_eq!(
         log.matches(r#""event":"sends_expired""#).count(),
@@ -451,7 +488,7 @@ fn an_expire_store_error_is_logged_as_expire_failed() {
             Ok(())
         })),
     ));
-    assert_eq!(out, RunOutcome::Stopped);
+    assert_stopped_clean(&e, &out);
     let log = e.log();
     let line = log
         .lines()
@@ -465,9 +502,11 @@ fn an_expire_store_error_is_logged_as_expire_failed() {
 fn on_records_is_the_delivery_checker() {
     let _s = serial();
     let e = env();
+    let notes = Notes::default();
+    let n = notes.clone();
     let out = daemon_run(e.deps(
         foreign,
-        Some(Box::new(|mut d: DaemonDeps| {
+        Some(Box::new(move |mut d: DaemonDeps| {
             let id = pending_send(&d.store, "deploy it", T0 - 5_000);
             let record = Classified::PeerMessage {
                 uuid: "p1".into(),
@@ -476,10 +515,17 @@ fn on_records_is_the_delivery_checker() {
                 from_mode: "default".into(),
                 body: build_message("deploy it"),
             };
-            (d.on_records.as_mut().unwrap())(&d.store, S1, &[record]).unwrap();
-            assert_eq!(state(&d.store, id), SendState::Delivered);
+            let Some(hook) = d.on_records.as_mut() else {
+                return Ok(());
+            };
+            let res = hook(&d.store, S1, &[record]);
+            let after = state(&d.store, id);
+            n.lock()
+                .unwrap()
+                .push(format!("ok={} state={}", res.is_ok(), after.as_str()));
             Ok(())
         })),
     ));
-    assert_eq!(out, RunOutcome::Stopped);
+    assert_stopped_clean(&e, &out);
+    assert_eq!(read(&notes), ["ok=true state=delivered"]);
 }
