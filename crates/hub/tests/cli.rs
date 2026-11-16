@@ -231,7 +231,7 @@ fn run_twice_second_reports_already_running() {
     let o = e.hub(&["daemon", "run"]);
     assert_eq!(
         (code(&o), text(&o.stdout)),
-        (1, "ALREADY RUNNING".to_string())
+        (0, "ALREADY RUNNING".to_string())
     );
     // Reaped by the wait, so the stop sees it gone rather than a zombie.
     let reaper = std::thread::spawn(move || first.wait());

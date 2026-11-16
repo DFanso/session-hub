@@ -100,8 +100,17 @@ fn spawn_daemon(d: &CliDeps) -> io::Result<()> {
     }
     detach(d, &mut cmd, windowless);
     #[cfg(windows)]
-    uninherit_std_handles();
-    cmd.spawn().map(drop)
+    let _restore = UninheritedStdHandles::new();
+    let child = cmd.spawn()?;
+    // Unix: reaped here, or it stays a zombie for as long as a long-lived caller (the TUI) runs.
+    #[cfg(unix)]
+    std::thread::spawn(move || {
+        let mut child = child;
+        let _ = child.wait();
+    });
+    #[cfg(windows)]
+    drop(child);
+    Ok(())
 }
 
 #[cfg(unix)]
@@ -118,23 +127,49 @@ fn detach(_d: &CliDeps, cmd: &mut Command, _windowless: bool) {
 
 /// Windows hands every inheritable handle to the child, not only the stdio it is given. Our own
 /// stdout/stderr may be a caller's pipe (the tray's bridge, a test): if the daemon inherited it, the
-/// caller would wait for end of file until the daemon exits. Not inheritable: only the daemon's
-/// own NUL stdio goes through.
+/// caller would wait for end of file until the daemon exits. So the std handles are made not
+/// inheritable for the spawn, and put back as they were when the guard drops (also after a failed
+/// spawn): a long-lived caller (the TUI) keeps its own stdio inheritable.
 #[cfg(windows)]
-fn uninherit_std_handles() {
-    use windows_sys::Win32::Foundation::{
-        HANDLE_FLAG_INHERIT, INVALID_HANDLE_VALUE, SetHandleInformation,
-    };
-    use windows_sys::Win32::System::Console::{
-        GetStdHandle, STD_ERROR_HANDLE, STD_INPUT_HANDLE, STD_OUTPUT_HANDLE,
-    };
-    for id in [STD_INPUT_HANDLE, STD_OUTPUT_HANDLE, STD_ERROR_HANDLE] {
-        // SAFETY: plain Win32 calls on this process's own standard handles; a failure only
-        // leaves the handle as it was.
-        unsafe {
-            let h = GetStdHandle(id);
-            if !h.is_null() && h != INVALID_HANDLE_VALUE {
-                SetHandleInformation(h, HANDLE_FLAG_INHERIT, 0);
+pub struct UninheritedStdHandles(Vec<(windows_sys::Win32::Foundation::HANDLE, u32)>);
+
+#[cfg(windows)]
+impl UninheritedStdHandles {
+    pub fn new() -> Self {
+        use windows_sys::Win32::Foundation::{
+            GetHandleInformation, HANDLE_FLAG_INHERIT, INVALID_HANDLE_VALUE, SetHandleInformation,
+        };
+        use windows_sys::Win32::System::Console::{
+            GetStdHandle, STD_ERROR_HANDLE, STD_INPUT_HANDLE, STD_OUTPUT_HANDLE,
+        };
+        let mut saved = Vec::new();
+        for id in [STD_INPUT_HANDLE, STD_OUTPUT_HANDLE, STD_ERROR_HANDLE] {
+            // SAFETY: plain Win32 calls on this process's own standard handles; a failure only
+            // leaves the handle as it was.
+            unsafe {
+                let h = GetStdHandle(id);
+                let mut flags = 0u32;
+                if !h.is_null()
+                    && h != INVALID_HANDLE_VALUE
+                    && GetHandleInformation(h, &mut flags) != 0
+                {
+                    saved.push((h, flags & HANDLE_FLAG_INHERIT));
+                    SetHandleInformation(h, HANDLE_FLAG_INHERIT, 0);
+                }
+            }
+        }
+        UninheritedStdHandles(saved)
+    }
+}
+
+#[cfg(windows)]
+impl Drop for UninheritedStdHandles {
+    fn drop(&mut self) {
+        use windows_sys::Win32::Foundation::{HANDLE_FLAG_INHERIT, SetHandleInformation};
+        for &(h, inherit) in &self.0 {
+            // SAFETY: the handle was valid when saved; if it was closed since, the call fails.
+            unsafe {
+                SetHandleInformation(h, HANDLE_FLAG_INHERIT, inherit);
             }
         }
     }
@@ -260,7 +295,7 @@ pub fn run(d: &CliDeps) -> i32 {
         RunOutcome::Stopped => 0,
         RunOutcome::AlreadyRunning => {
             (d.out)("ALREADY RUNNING");
-            1
+            0
         }
         RunOutcome::Failed(msg) => {
             (d.err)(&format!("FAILED: {msg}"));
