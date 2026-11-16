@@ -1,6 +1,8 @@
 pub mod config;
+pub mod daemon;
 pub mod ingest;
 pub mod security;
+pub mod send;
 pub mod status;
 pub mod store;
 pub mod text;
