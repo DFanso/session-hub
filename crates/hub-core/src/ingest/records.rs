@@ -1,6 +1,7 @@
 //! Classification of one transcript JSONL line. Mirrors `src/ingest/records.ts`.
 //! Content of never-store record types is never read.
 
+use std::borrow::Cow;
 use std::sync::LazyLock;
 
 use regex::Regex;
@@ -328,9 +329,67 @@ fn from_record(r: &Obj, rtype: &str) -> Classified {
     }
 }
 
+fn hex4(b: &[u8]) -> Option<u16> {
+    if b.len() < 4 {
+        return None;
+    }
+    let mut v: u16 = 0;
+    for &c in &b[..4] {
+        v = (v << 4) | u16::try_from(char::from(c).to_digit(16)?).ok()?;
+    }
+    Some(v)
+}
+
+/// JS `JSON.parse` accepts unpaired `\uD800`-`\uDFFF` escapes (as lone surrogates); serde_json
+/// rejects them. Rewrite each unpaired one to `\uFFFD`; valid pairs and escaped backslashes are
+/// left alone. Borrows when nothing changes.
+fn replace_lone_surrogates(line: &str) -> Cow<'_, str> {
+    let b = line.as_bytes();
+    let mut out: Option<String> = None;
+    let mut copied = 0;
+    let mut i = 0;
+    while i < b.len() {
+        if b[i] != b'\\' {
+            i += 1;
+            continue;
+        }
+        if b.get(i + 1) != Some(&b'u') {
+            i += 2;
+            continue;
+        }
+        let Some(u) = hex4(&b[i + 2..]) else {
+            i += 2;
+            continue;
+        };
+        let high_pair = (0xD800..0xDC00).contains(&u)
+            && b.get(i + 6) == Some(&b'\\')
+            && b.get(i + 7) == Some(&b'u')
+            && hex4(&b[i + 8..]).is_some_and(|l| (0xDC00..0xE000).contains(&l));
+        if high_pair {
+            i += 12;
+        } else if (0xD800..0xE000).contains(&u) {
+            let o = out.get_or_insert_with(String::new);
+            o.push_str(&line[copied..i]);
+            o.push_str("\\uFFFD");
+            i += 6;
+            copied = i;
+        } else {
+            i += 6;
+        }
+    }
+    match out {
+        Some(mut o) => {
+            o.push_str(&line[copied..]);
+            Cow::Owned(o)
+        }
+        None => Cow::Borrowed(line),
+    }
+}
+
 /// Classify one transcript JSONL line. Never panics.
 pub fn classify(line: &str) -> Classified {
-    let Ok(Value::Object(rec)) = serde_json::from_str::<Value>(line) else {
+    let line = replace_lone_surrogates(line);
+    let Ok(Value::Object(rec)) = serde_json::from_str::<Value>(&line) else {
         return ignored("bad-json");
     };
     let rtype = str_of(rec.get("type"));
