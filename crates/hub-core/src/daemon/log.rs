@@ -75,3 +75,29 @@ impl Logger for MemoryLogger {
         self.push("error", event, f);
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn memory_logger_keeps_every_level_in_order() {
+        let log = MemoryLogger::new();
+        log.info("a", vec![("n", LogValue::Num(1.0))]);
+        log.warn("b", vec![("ok", LogValue::Bool(true))]);
+        log.error("c", vec![("s", LogValue::Str("x".into()))]);
+        let got: Vec<(&str, String)> = log
+            .entries()
+            .into_iter()
+            .map(|e| (e.level, e.event))
+            .collect();
+        assert_eq!(
+            got,
+            [
+                ("info", "a".to_string()),
+                ("warn", "b".to_string()),
+                ("error", "c".to_string())
+            ]
+        );
+    }
+}
