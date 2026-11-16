@@ -1518,3 +1518,49 @@ fn a_stop_marker_is_not_the_collectors_business() {
     d.stop().unwrap();
     assert!(e.run_dir.join(DAEMON_STOPPED_FILE).exists());
 }
+
+#[test]
+fn an_unreadable_session_row_is_skipped_and_counted_in_the_log_without_its_values() {
+    let e = env();
+    let path = e.transcript(S1, &[user_line("u1", PROMPT, None)]);
+    for (id, name) in [(S1, "good"), ("bad-row", "bad")] {
+        e.reader
+            .upsert_session(&SessionRow {
+                session_id: id.into(),
+                profile: "claude".into(),
+                name: name.into(),
+                cwd: "C:\\fixture".into(),
+                pid: 1,
+                kind: "interactive".into(),
+                status: LiveStatus::Idle,
+                started_at: 1,
+                updated_at: 1,
+                ended_at: None,
+                transcript_path: path_str(&path),
+                permission_mode: None,
+            })
+            .unwrap();
+    }
+    rusqlite::Connection::open(&e.db_path)
+        .unwrap()
+        .execute_batch(
+            r#"INSERT INTO status VALUES ('bad-row', NULL, NULL, '[]', '["leaked-text-123"]',
+               '[]', 'r', 't');"#,
+        )
+        .unwrap();
+    e.cli.set_fail(true);
+    let _d = e.start(Over::default());
+    // The good row still loads and is tailed.
+    e.settled(|| e.history_len(S1) == 1);
+    let w = e
+        .find("sessions_unreadable")
+        .expect("sessions_unreadable logged");
+    assert_eq!(num(&w, "count"), 1.0);
+    assert_eq!(w.fields.len(), 1, "{:?}", w.fields);
+    let all = format!("{:?}", e.entries());
+    assert!(!all.contains("leaked-text-123"), "{all}");
+    // Logged once per change, not on every reload.
+    e.advance(5_000);
+    e.next_pass();
+    assert_eq!(e.count("sessions_unreadable"), 1);
+}

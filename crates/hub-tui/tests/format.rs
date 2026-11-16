@@ -122,6 +122,7 @@ fn meta() -> SnapshotMeta {
         stale: vec![],
         daemon: DaemonState::Running,
         relay_stray_count: 0,
+        unreadable_sessions: 0,
     }
 }
 
@@ -282,4 +283,27 @@ fn hhmm_follows_the_process_time_zone_when_tz_is_set() {
         }
         _ => {}
     }
+}
+
+#[test]
+fn unreadable_session_rows_are_flagged_with_their_count_only() {
+    let line = |m: &SnapshotMeta| {
+        status_lines(&view(), m, NOW, 120)
+            .into_iter()
+            .find(|l| l.text.contains("unreadable"))
+    };
+    assert!(line(&meta()).is_none());
+    let one = line(&SnapshotMeta {
+        unreadable_sessions: 1,
+        ..meta()
+    })
+    .unwrap();
+    assert_eq!(one.text, "index: 1 session row unreadable, not listed");
+    assert_eq!(one.color, Some(Color::Red));
+    let two = line(&SnapshotMeta {
+        unreadable_sessions: 2,
+        ..meta()
+    })
+    .unwrap();
+    assert_eq!(two.text, "index: 2 session rows unreadable, not listed");
 }

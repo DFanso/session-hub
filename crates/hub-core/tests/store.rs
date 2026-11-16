@@ -1871,3 +1871,66 @@ fn sessions_unrecognised_status_lists_as_unknown() {
         LiveStatus::Unknown
     );
 }
+
+#[test]
+fn session_numbers_stored_as_real_by_ts_are_read_truncated() {
+    // bun:sqlite binds a JS number with a fraction as REAL, and INTEGER affinity keeps it REAL.
+    let db = Db::new();
+    db.open();
+    db.raw()
+        .execute_batch(
+            "INSERT INTO sessions VALUES ('s1','work','alpha','C:/x',1234.5,'interactive','idle',
+               1000.7,2000.2,NULL,'C:/x/s1.jsonl',NULL);
+             INSERT INTO sessions VALUES ('s2','work','beta','C:/x',7,'interactive','idle',
+               1,2,3000.9,'C:/x/s2.jsonl',NULL);",
+        )
+        .unwrap();
+    let s = db.open();
+    let list = s.list_sessions_counted().unwrap();
+    assert_eq!(list.unreadable, 0);
+    let v = &list.sessions;
+    assert_eq!(v.len(), 2);
+    assert_eq!(
+        (v[0].pid, v[0].started_at, v[0].updated_at),
+        (1234, 1000, 2000)
+    );
+    assert_eq!(v[1].ended_at, Some(3000));
+    let row = s.get_session("s1").unwrap().unwrap();
+    assert_eq!(
+        (row.pid, row.started_at, row.updated_at),
+        (1234, 1000, 2000)
+    );
+}
+
+#[test]
+fn a_row_that_cannot_be_decoded_is_skipped_and_counted() {
+    let db = Db::new();
+    let s = db.open();
+    s.upsert_session(&sess("s1", "t1")).unwrap();
+    s.upsert_session(&SessionRow {
+        name: "beta".into(),
+        ..sess("s2", "t2")
+    })
+    .unwrap();
+    s.upsert_session(&SessionRow {
+        name: "gamma".into(),
+        ..sess("s3", "t3")
+    })
+    .unwrap();
+    db.raw()
+        .execute_batch(
+            r#"INSERT INTO status VALUES ('s1', NULL, NULL, '[]', '["leaked-text-123"]', '[]', 'r', 't');
+               INSERT INTO status VALUES ('s3', NULL, NULL, '{', '[]', '[]', 'r', 't');"#,
+        )
+        .unwrap();
+    let list = s.list_sessions_counted().unwrap();
+    assert_eq!(list.unreadable, 2);
+    let ids: Vec<&str> = list
+        .sessions
+        .iter()
+        .map(|v| v.session_id.as_str())
+        .collect();
+    assert_eq!(ids, ["s2"]);
+    // The plain list is the same good rows.
+    assert_eq!(s.list_sessions().unwrap(), list.sessions);
+}

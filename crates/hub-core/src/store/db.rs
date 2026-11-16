@@ -278,12 +278,12 @@ fn to_session(r: &Row<'_>) -> rusqlite::Result<SessionRow> {
         profile: r.get("profile")?,
         name: r.get("name")?,
         cwd: r.get("cwd")?,
-        pid: r.get("pid")?,
+        pid: num_col(r, "pid")?,
         kind: r.get("kind")?,
         status: r.get("status")?,
-        started_at: r.get("started_at")?,
-        updated_at: r.get("updated_at")?,
-        ended_at: r.get("ended_at")?,
+        started_at: num_col(r, "started_at")?,
+        updated_at: num_col(r, "updated_at")?,
+        ended_at: opt_num_col(r, "ended_at")?,
         transcript_path: r.get("transcript_path")?,
         permission_mode: r.get("permission_mode")?,
     })
@@ -313,13 +313,46 @@ fn to_send(r: &Row<'_>) -> rusqlite::Result<SendRow> {
     })
 }
 
-/// A JSON text column parsed like `JSON.parse`; a parse failure is a column conversion error.
+/// A JSON text column parsed like `JSON.parse`; a parse failure is a column conversion error. The
+/// error names only the column: serde's message quotes the rejected value (status text), and store
+/// errors reach daemon.log.
 fn json_col<T: DeserializeOwned>(r: &Row<'_>, name: &str) -> rusqlite::Result<T> {
     let text: String = r.get(name)?;
-    serde_json::from_str(&text).map_err(|e| {
+    serde_json::from_str(&text).map_err(|_| {
         let idx = r.as_ref().column_index(name).unwrap_or(0);
-        rusqlite::Error::FromSqlConversionFailure(idx, Type::Text, Box::new(e))
+        rusqlite::Error::FromSqlConversionFailure(
+            idx,
+            Type::Text,
+            format!("invalid JSON in {name}").into(),
+        )
     })
+}
+
+/// An INTEGER column TS may have stored as REAL (bun:sqlite binds a JS number with a fraction as
+/// REAL): a REAL is truncated toward zero, like `progress_pct`. NULL or text is a type error.
+fn num_col(r: &Row<'_>, name: &str) -> rusqlite::Result<i64> {
+    opt_num_col(r, name)?.ok_or_else(|| {
+        let idx = r.as_ref().column_index(name).unwrap_or(0);
+        rusqlite::Error::InvalidColumnType(idx, name.to_string(), Type::Null)
+    })
+}
+
+/// [`num_col`] for a nullable column.
+fn opt_num_col(r: &Row<'_>, name: &str) -> rusqlite::Result<Option<i64>> {
+    match r.get_ref(name)? {
+        ValueRef::Null => Ok(None),
+        ValueRef::Integer(i) => Ok(Some(i)),
+        // `as` saturates at the i64 bounds; SQLite stores no NaN (it becomes NULL).
+        ValueRef::Real(f) => Ok(Some(f as i64)),
+        other => {
+            let idx = r.as_ref().column_index(name).unwrap_or(0);
+            Err(rusqlite::Error::InvalidColumnType(
+                idx,
+                name.to_string(),
+                other.data_type(),
+            ))
+        }
+    }
 }
 
 /// A byte offset stored as INTEGER (SQLite integers are i64).
@@ -337,6 +370,13 @@ fn sql_i64(v: u64) -> rusqlite::Result<i64> {
 
 fn to_json<T: Serialize + ?Sized>(v: &T) -> rusqlite::Result<String> {
     serde_json::to_string(v).map_err(|e| rusqlite::Error::ToSqlConversionFailure(Box::new(e)))
+}
+
+/// The readable sessions, and how many rows were skipped because they could not be decoded.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SessionList {
+    pub sessions: Vec<SessionView>,
+    pub unreadable: usize,
 }
 
 /// One row of the session list before answered items are marked.
@@ -543,61 +583,75 @@ impl Store {
             .optional()?)
     }
 
+    /// The session list without the rows that could not be decoded (see [`Self::list_sessions_counted`]).
     pub fn list_sessions(&self) -> Result<Vec<SessionView>, StoreError> {
-        let rows: Vec<ListedRow> = self
-            .conn
-            .prepare_cached(
-                "SELECT s.*, st.progress_pct, st.phase, st.remaining_json, st.waiting_json,
+        Ok(self.list_sessions_counted()?.sessions)
+    }
+
+    /// The session list. A row that cannot be decoded (corrupt status JSON, a wrong column type) is
+    /// skipped and counted in `unreadable`, so one bad row does not hide every session; the caller
+    /// reports the count, never the row's values. A query error (busy, missing table) still fails.
+    pub fn list_sessions_counted(&self) -> Result<SessionList, StoreError> {
+        let mut stmt = self.conn.prepare_cached(
+            "SELECT s.*, st.progress_pct, st.phase, st.remaining_json, st.waiting_json,
                 st.recommendations_json, st.reply_uuid AS st_reply_uuid, st.reply_ts AS st_reply_ts,
                 lr.reply_uuid AS lr_reply_uuid, lr.reply_ts AS lr_reply_ts, lr.has_status
            FROM sessions s
            LEFT JOIN status st ON st.session_id = s.session_id
            LEFT JOIN latest_reply lr ON lr.session_id = s.session_id
           ORDER BY (s.ended_at IS NOT NULL), s.profile, s.name, s.session_id",
-            )?
-            .query_map([], |r| {
-                // JS truthiness: a NULL or empty waiting_json lists nothing.
-                let waiting_json: Option<String> = r.get("waiting_json")?;
-                let waiting = match waiting_json.as_deref() {
-                    Some(t) if !t.is_empty() => json_col(r, "waiting_json")?,
-                    _ => Vec::new(),
-                };
-                let st_reply_uuid: Option<String> = r.get("st_reply_uuid")?;
-                let status = match st_reply_uuid {
-                    None => None,
-                    Some(reply_uuid) => {
-                        // REAL column: TS writes a whole number, so the value is exact.
-                        let pct: Option<f64> = r.get("progress_pct")?;
-                        Some(StoredStatus {
-                            progress_pct: pct.map(|p| p as i64),
-                            phase: r.get("phase")?,
-                            remaining: json_col(r, "remaining_json")?,
-                            waiting: Vec::new(),
-                            recommendations: json_col(r, "recommendations_json")?,
-                            reply_uuid,
-                            reply_ts: r.get("st_reply_ts")?,
-                        })
-                    }
-                };
-                let lr_reply_uuid: Option<String> = r.get("lr_reply_uuid")?;
-                let latest_reply = match lr_reply_uuid {
-                    None => None,
-                    Some(reply_uuid) => Some(LatestReply {
+        )?;
+        let decode = |r: &Row<'_>| -> rusqlite::Result<ListedRow> {
+            // JS truthiness: a NULL or empty waiting_json lists nothing.
+            let waiting_json: Option<String> = r.get("waiting_json")?;
+            let waiting = match waiting_json.as_deref() {
+                Some(t) if !t.is_empty() => json_col(r, "waiting_json")?,
+                _ => Vec::new(),
+            };
+            let st_reply_uuid: Option<String> = r.get("st_reply_uuid")?;
+            let status = match st_reply_uuid {
+                None => None,
+                Some(reply_uuid) => {
+                    // REAL column: TS writes a whole number, so the value is exact.
+                    let pct: Option<f64> = r.get("progress_pct")?;
+                    Some(StoredStatus {
+                        progress_pct: pct.map(|p| p as i64),
+                        phase: r.get("phase")?,
+                        remaining: json_col(r, "remaining_json")?,
+                        waiting: Vec::new(),
+                        recommendations: json_col(r, "recommendations_json")?,
                         reply_uuid,
-                        reply_ts: r.get("lr_reply_ts")?,
-                        has_status: r.get::<_, Option<i64>>("has_status")? == Some(1),
-                    }),
-                };
-                Ok(ListedRow {
-                    session: to_session(r)?,
-                    status,
-                    waiting,
-                    latest_reply,
-                })
-            })?
-            .collect::<rusqlite::Result<_>>()?;
+                        reply_ts: r.get("st_reply_ts")?,
+                    })
+                }
+            };
+            let lr_reply_uuid: Option<String> = r.get("lr_reply_uuid")?;
+            let latest_reply = match lr_reply_uuid {
+                None => None,
+                Some(reply_uuid) => Some(LatestReply {
+                    reply_uuid,
+                    reply_ts: r.get("lr_reply_ts")?,
+                    has_status: r.get::<_, Option<i64>>("has_status")? == Some(1),
+                }),
+            };
+            Ok(ListedRow {
+                session: to_session(r)?,
+                status,
+                waiting,
+                latest_reply,
+            })
+        };
+        let mut rows: Vec<ListedRow> = Vec::new();
+        let mut unreadable = 0;
+        let mut cursor = stmt.query([])?;
+        while let Some(r) = cursor.next()? {
+            match decode(r) {
+                Ok(row) => rows.push(row),
+                Err(_) => unreadable += 1,
+            }
+        }
         let answers = self.answers_since_status()?;
-        Ok(rows
+        let sessions = rows
             .into_iter()
             .map(|r| {
                 let listed: Vec<String> = r.waiting.iter().filter_map(|w| w.id.clone()).collect();
@@ -635,7 +689,11 @@ impl Store {
                     waiting_count,
                 }
             })
-            .collect())
+            .collect();
+        Ok(SessionList {
+            sessions,
+            unreadable,
+        })
     }
 
     /// Per live session with waiting items, the texts of the owner's own messages and of relay
@@ -1111,22 +1169,59 @@ mod tests {
     }
 
     #[test]
-    fn corrupt_status_json_is_a_column_error() {
+    fn corrupt_status_json_is_a_column_error_naming_only_the_column() {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("hub.db");
         let s = Store::open(&path, true).unwrap();
-        s.conn
-            .execute_batch(
-                "INSERT INTO sessions VALUES ('s1','w','a','c',1,'k','idle',1,2,NULL,'t',NULL);
-                 INSERT INTO status VALUES ('s1', NULL, NULL, '[]', '{', '[]', 'r', 't');",
-            )
-            .unwrap();
-        assert!(matches!(
-            s.list_sessions(),
-            Err(StoreError::Sqlite(
-                rusqlite::Error::FromSqlConversionFailure(_, Type::Text, _)
-            ))
-        ));
+        for (json, value) in [
+            (r#"["leaked-text-123"]"#, "leaked-text-123"),
+            (r#"[{"id":"Q1","text":7}]"#, "7"),
+            ("{", "{"),
+        ] {
+            let err = s
+                .conn
+                .query_row("SELECT ?1 AS waiting_json", [json], |r| {
+                    json_col::<Vec<WaitingItem>>(r, "waiting_json")
+                })
+                .unwrap_err();
+            assert!(
+                matches!(
+                    err,
+                    rusqlite::Error::FromSqlConversionFailure(0, Type::Text, _)
+                ),
+                "{err:?}"
+            );
+            let text = format!("{err} {err:?}");
+            assert!(text.contains("invalid JSON in waiting_json"), "{text}");
+            if value.len() > 1 {
+                assert!(!text.contains(value), "{text}");
+            }
+        }
+    }
+
+    #[test]
+    fn a_text_number_column_is_a_type_error() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("hub.db");
+        let s = Store::open(&path, true).unwrap();
+        let err = s
+            .conn
+            .query_row("SELECT 'abc' AS pid, NULL AS ended", [], |r| {
+                num_col(r, "pid")
+            })
+            .unwrap_err();
+        assert!(
+            matches!(err, rusqlite::Error::InvalidColumnType(0, _, Type::Text)),
+            "{err:?}"
+        );
+        let err = s
+            .conn
+            .query_row("SELECT NULL AS pid", [], |r| num_col(r, "pid"))
+            .unwrap_err();
+        assert!(
+            matches!(err, rusqlite::Error::InvalidColumnType(0, _, Type::Null)),
+            "{err:?}"
+        );
     }
 
     #[test]

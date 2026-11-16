@@ -314,6 +314,8 @@ struct Collector {
     vacuum_retry_at: i64,
     /// Sessions whose cached transcript vanished and was already logged.
     missing_logged: HashSet<String>,
+    /// The unreadable session row count last seen by `load_sessions`.
+    unreadable_logged: Cell<usize>,
     counters: Counters,
     tx: Sender<Msg>,
 }
@@ -343,10 +345,11 @@ impl Collector {
             purge_retry_at: 0,
             vacuum_retry_at: 0,
             missing_logged: HashSet::new(),
+            unreadable_logged: Cell::new(0),
             counters: Counters::default(),
             tx,
         };
-        let rows = c.store.list_sessions()?;
+        let rows = c.load_sessions()?;
         // Until a profile's first successful agents call, its last known live list is the store's.
         for v in &rows {
             if v.ended_at.is_none() {
@@ -366,9 +369,21 @@ impl Collector {
     }
 
     fn reload_sessions(&self) -> Result<(), StoreError> {
-        let rows = self.store.list_sessions()?;
+        let rows = self.load_sessions()?;
         self.set_sessions(rows);
         Ok(())
+    }
+
+    /// The readable session rows. Rows that cannot be decoded are skipped by the store; their count
+    /// (never their values) is logged when it changes.
+    fn load_sessions(&self) -> Result<Vec<SessionView>, StoreError> {
+        let list = self.store.list_sessions_counted()?;
+        if self.unreadable_logged.replace(list.unreadable) != list.unreadable && list.unreadable > 0
+        {
+            self.log
+                .warn("sessions_unreadable", vec![("count", num(list.unreadable))]);
+        }
+        Ok(list.sessions)
     }
 
     fn live_set(&mut self, profile: &str) -> &mut Vec<String> {

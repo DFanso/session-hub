@@ -6,6 +6,7 @@ mod schema;
 
 pub use db::{
     ANSWERS_SQL, LatestReply, LiveStatus, MessageRow, Role, SearchHit, SendRow, SendState,
-    SessionRow, SessionView, Store, StoreError, StoredStatus, ViewWaitingItem, iso_utc_ms,
+    SessionList, SessionRow, SessionView, Store, StoreError, StoredStatus, ViewWaitingItem,
+    iso_utc_ms,
 };
 pub use schema::MIGRATIONS;

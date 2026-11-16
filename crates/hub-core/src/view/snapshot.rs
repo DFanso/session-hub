@@ -30,6 +30,14 @@ pub struct SnapshotMeta {
     /// Relay messages that landed in a session other than the one they were sent to, while the
     /// last one is under `STRAY_WARN_MS` old; else 0.
     pub relay_stray_count: i64,
+    /// Session rows skipped because they could not be decoded (`Store::list_sessions_counted`).
+    /// Not part of the TS snapshot: left out of the JSON while 0, so the shape stays the same.
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub unreadable_sessions: i64,
+}
+
+fn is_zero(n: &i64) -> bool {
+    *n == 0
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -116,11 +124,8 @@ pub fn read_snapshot(
     known_profiles: &[&str],
     now: i64,
 ) -> Result<HubSnapshot, StoreError> {
-    let sessions: Vec<SessionView> = store
-        .list_sessions()?
-        .into_iter()
-        .map(clean_session)
-        .collect();
+    let list = store.list_sessions_counted()?;
+    let sessions: Vec<SessionView> = list.sessions.into_iter().map(clean_session).collect();
     let mut profiles: Vec<&str> = Vec::new();
     for p in known_profiles
         .iter()
@@ -176,6 +181,7 @@ pub fn read_snapshot(
                 DaemonState::Stopped
             },
             relay_stray_count,
+            unreadable_sessions: list.unreadable as i64,
         },
         totals,
     })

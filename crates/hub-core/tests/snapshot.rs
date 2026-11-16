@@ -269,3 +269,22 @@ fn a_store_error_is_returned_not_an_empty_snapshot() {
     assert!(store.list_sessions().is_err());
     assert!(read_snapshot(&store, true, &KNOWN, NOW).is_err());
 }
+
+#[test]
+fn an_unreadable_session_row_is_left_out_and_counted_in_meta() {
+    let (dir, store) = open();
+    store.upsert_session(&session("A", "a")).unwrap();
+    store.upsert_session(&session("B", "b")).unwrap();
+    let v = serde_json::to_value(read_snapshot(&store, true, &KNOWN, NOW).unwrap()).unwrap();
+    // Zero is not serialized: the meta keys stay those of the TS snapshot.
+    assert!(v["meta"].get("unreadableSessions").is_none());
+    rusqlite::Connection::open(dir.path().join("index.db"))
+        .unwrap()
+        .execute_batch(r#"INSERT INTO status VALUES ('A', NULL, NULL, '[]', '{', '[]', 'r', 't');"#)
+        .unwrap();
+    let snap = read_snapshot(&store, true, &KNOWN, NOW).unwrap();
+    assert_eq!(snap.sessions.len(), 1);
+    assert_eq!(snap.sessions[0].session_id, "B");
+    assert_eq!(snap.meta.unreadable_sessions, 1);
+    assert_eq!(snap.totals.live, 1);
+}

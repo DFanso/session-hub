@@ -313,6 +313,7 @@ fn snapshot_with(names: &[&str]) -> HubSnapshot {
             stale: vec![],
             daemon: DaemonState::Running,
             relay_stray_count: 0,
+            unreadable_sessions: 0,
         },
         totals: Totals {
             waiting_items: 0,

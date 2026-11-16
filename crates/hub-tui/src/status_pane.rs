@@ -126,6 +126,17 @@ pub fn status_lines(s: &SessionView, meta: &SnapshotMeta, now: i64, width: usize
             "",
         );
     }
+    if meta.unreadable_sessions > 0 {
+        let n = meta.unreadable_sessions;
+        o.add(
+            &format!(
+                "index: {n} session row{} unreadable, not listed",
+                if n == 1 { "" } else { "s" }
+            ),
+            red(),
+            "",
+        );
+    }
     let Some(st) = &s.status else {
         o.add("no status reply yet", dim(), "");
         return o.lines;
