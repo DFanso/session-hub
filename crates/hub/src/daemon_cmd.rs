@@ -131,11 +131,11 @@ fn detach(_d: &CliDeps, cmd: &mut Command, _windowless: bool) {
 /// inheritable for the spawn, and put back as they were when the guard drops (also after a failed
 /// spawn): a long-lived caller (the TUI) keeps its own stdio inheritable.
 #[cfg(windows)]
-pub struct UninheritedStdHandles(Vec<(windows_sys::Win32::Foundation::HANDLE, u32)>);
+pub(crate) struct UninheritedStdHandles(Vec<(windows_sys::Win32::Foundation::HANDLE, u32)>);
 
 #[cfg(windows)]
 impl UninheritedStdHandles {
-    pub fn new() -> Self {
+    pub(crate) fn new() -> Self {
         use windows_sys::Win32::Foundation::{
             GetHandleInformation, HANDLE_FLAG_INHERIT, INVALID_HANDLE_VALUE, SetHandleInformation,
         };
