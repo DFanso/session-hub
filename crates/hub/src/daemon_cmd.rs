@@ -19,7 +19,7 @@ use crate::cli::CliDeps;
 const WAIT: Duration = Duration::from_secs(5);
 const POLL: Duration = Duration::from_millis(100);
 
-fn config<'a>(d: &'a CliDeps) -> Result<&'a Config, i32> {
+fn config(d: &CliDeps) -> Result<&Config, i32> {
     d.config.as_ref().map_err(|e| {
         (d.err)(&format!("hub: {e}"));
         1
