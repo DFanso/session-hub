@@ -35,6 +35,9 @@ jobs:
       - name: Test
         run: cargo test --locked --workspace
 
+      - name: Masking runs in linear time (release)
+        run: cargo test --locked --release -p hub-core --test security -- --ignored mask_is_linear
+
       - uses: taiki-e/install-action@ab49d3c64680143e184118bed66a46419fc15519 # v2.90.5
         with:
           tool: cargo-llvm-cov,cargo-deny

@@ -174,5 +174,63 @@
       "fn": "text",
       "s": "a\nb\nc\u0013d"
     }
+  },
+  {
+    "name": "port:esc before a latin-1 char",
+    "input": {
+      "fn": "text",
+      "s": "a\u001bé b"
+    }
+  },
+  {
+    "name": "port:nel is a C1 control",
+    "input": {
+      "fn": "text",
+      "s": "abc"
+    }
+  },
+  {
+    "name": "port:unterminated csi",
+    "input": {
+      "fn": "text",
+      "s": "a\u001b[12"
+    }
+  },
+  {
+    "name": "port:unterminated osc",
+    "input": {
+      "fn": "text",
+      "s": "a\u001b]0;title"
+    }
+  },
+  {
+    "name": "port:osc ended by ESC not ST",
+    "input": {
+      "fn": "text",
+      "s": "a\u001b]0;t\u001bxb"
+    }
+  },
+  {
+    "name": "port:input CR CR LF",
+    "input": {
+      "fn": "input",
+      "s": "a\r\r\nb",
+      "meta": false
+    }
+  },
+  {
+    "name": "port:input csi tail then newline is text",
+    "input": {
+      "fn": "input",
+      "s": "[31m\n",
+      "meta": false
+    }
+  },
+  {
+    "name": "port:bidi isolates and astral kept",
+    "input": {
+      "fn": "text",
+      "s": "⁧x⁩😀‪y"
+    }
   }
 ]

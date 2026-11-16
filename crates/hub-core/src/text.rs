@@ -16,3 +16,22 @@ pub fn clip_utf16(s: &str, max_units: usize) -> &str {
     }
     s
 }
+
+/// Body of a regex character class equal to JS `\s` (JavaScriptCore's list). Rust's `\s` differs:
+/// it has U+0085 and lacks U+FEFF.
+pub const JS_SPACE_CLASS: &str = r"\t\n\x0B\x0C\r \x{A0}\x{1680}\x{2000}-\x{200A}\x{2028}\x{2029}\x{202F}\x{205F}\x{3000}\x{FEFF}";
+
+/// JS `\s` for one character (see [`JS_SPACE_CLASS`]).
+pub fn is_js_space(c: char) -> bool {
+    matches!(
+        c,
+        '\t' | '\n' | '\u{0B}' | '\u{0C}' | '\r' | ' ' | '\u{A0}' | '\u{1680}' | '\u{2000}'
+            ..='\u{200A}'
+                | '\u{2028}'
+                | '\u{2029}'
+                | '\u{202F}'
+                | '\u{205F}'
+                | '\u{3000}'
+                | '\u{FEFF}'
+    )
+}

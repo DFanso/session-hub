@@ -414,5 +414,77 @@
   {
     "name": "focus:4",
     "input": "Q١: yes Ｑ1: yes"
+  },
+  {
+    "name": "port:js-space:nel is not JS whitespace",
+    "input": "password=abcdef ok"
+  },
+  {
+    "name": "port:js-space:bom is JS whitespace",
+    "input": "password=abc﻿defghi"
+  },
+  {
+    "name": "port:js-space:nel in a header value",
+    "input": "Authorization: Bearer abcdef end"
+  },
+  {
+    "name": "port:js-space:bom in a sas sig",
+    "input": "x?sig=abc﻿def"
+  },
+  {
+    "name": "port:js-space:nbsp in url credentials",
+    "input": "x://u:p w@h x://u:pw@h"
+  },
+  {
+    "name": "port:ascii-fold:long s in password",
+    "input": "paſſword=abcdefgh PASSWORD=abcdefgh"
+  },
+  {
+    "name": "port:ascii-fold:kelvin in api key",
+    "input": "x-api-Key: abcdefgh api_Key=abcdefgh"
+  },
+  {
+    "name": "port:ascii-fold:long s in basic",
+    "input": "Authorization: Baſic abcdefgh"
+  },
+  {
+    "name": "port:utf16:value of 6 units in 3 astral chars",
+    "input": "password=😀😀😀 end"
+  },
+  {
+    "name": "port:utf16:value of 4 units in 2 astral chars",
+    "input": "password=😀😀 end"
+  },
+  {
+    "name": "port:utf16:value of 6 units mixed",
+    "input": "token: é😀😀x"
+  },
+  {
+    "name": "port:look-behind:astral before a jwt",
+    "input": "😀eyJa.b.c éeyJa.b.c xeyJa.b.c"
+  },
+  {
+    "name": "port:look-behind:astral around a card",
+    "input": "😀4111111111111111😀"
+  },
+  {
+    "name": "port:look-behind:non-ascii digit before a card",
+    "input": "٤4111111111111111"
+  },
+  {
+    "name": "port:conn-string:crlf ends after the CR",
+    "input": "Server=a;Password=abc\r\nNext=1"
+  },
+  {
+    "name": "port:iban:lower-case country stays",
+    "input": "gb82WEST12345698765432"
+  },
+  {
+    "name": "port:bearer:non-ascii ends the token",
+    "input": "Bearer abcdefghijklmnopqrsétuvwxyz"
+  },
+  {
+    "name": "port:private-key:six dashes and no end",
+    "input": "-----BEGIN EC PRIVATE KEY------\nabc---\n-----END PUBLIC KEY-----"
   }
 ]

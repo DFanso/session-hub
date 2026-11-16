@@ -9,6 +9,7 @@ license.workspace = true
 workspace = true
 
 [dependencies]
+regex.workspace = true
 
 [dev-dependencies]
 serde.workspace = true
