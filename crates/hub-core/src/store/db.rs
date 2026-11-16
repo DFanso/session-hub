@@ -75,11 +75,18 @@ macro_rules! str_enum {
                 Ok(ToSqlOutput::from(self.as_str()))
             }
         }
+    };
+}
 
+/// Decoding from SQL is strict: an unrecognised string is an error.
+macro_rules! strict_from_sql {
+    ($name:ident) => {
         impl FromSql for $name {
             fn column_result(value: ValueRef<'_>) -> FromSqlResult<Self> {
                 Self::parse(value.as_str()?).ok_or_else(|| {
-                    FromSqlError::Other(concat!("unrecognised ", stringify!($name), " value").into())
+                    FromSqlError::Other(
+                        concat!("unrecognised ", stringify!($name), " value").into(),
+                    )
                 })
             }
         }
@@ -90,10 +97,18 @@ str_enum!(
     /// A session's live state from `claude agents` (`SessionRow.status` in TS).
     LiveStatus { Busy => "busy", Idle => "idle", Waiting => "waiting", Unknown => "unknown" }
 );
+/// Like TS `parseStatus`: any other string reads back as `unknown`, so a row from a newer build
+/// still lists.
+impl FromSql for LiveStatus {
+    fn column_result(value: ValueRef<'_>) -> FromSqlResult<Self> {
+        Ok(Self::parse(value.as_str()?).unwrap_or(Self::Unknown))
+    }
+}
 str_enum!(
     /// Who wrote an indexed message.
     Role { Owner => "owner", Peer => "peer", Assistant => "assistant" }
 );
+strict_from_sql!(Role);
 str_enum!(
     /// State of a relay send.
     SendState {
@@ -104,6 +119,7 @@ str_enum!(
         Failed => "failed",
     }
 );
+strict_from_sql!(SendState);
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]

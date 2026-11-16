@@ -1854,3 +1854,20 @@ fn enums_serialise_as_the_ts_string_unions() {
         ["pending", "held", "delivered", "expired", "failed"]
     );
 }
+
+#[test]
+fn sessions_unrecognised_status_lists_as_unknown() {
+    let db = Db::new();
+    let s = db.open();
+    s.upsert_session(&session()).unwrap();
+    db.raw()
+        .execute("UPDATE sessions SET status = 'stalled'", [])
+        .unwrap();
+    let rows = s.list_sessions().unwrap();
+    assert_eq!(rows.len(), 1);
+    assert_eq!(rows[0].state, LiveStatus::Unknown);
+    assert_eq!(
+        s.get_session("s1").unwrap().unwrap().status,
+        LiveStatus::Unknown
+    );
+}

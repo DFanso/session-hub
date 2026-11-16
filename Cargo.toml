@@ -16,6 +16,8 @@ tempfile = "=3.27.0"
 rusqlite = { version = "=0.43.0", features = ["bundled"] }
 thiserror = "=2.0.21"
 sha2 = "=0.11.1"
+# Without default features: no crossbeam; FSEvents stays on for macOS.
+notify = { version = "=8.2.2", default-features = false, features = ["macos_fsevent"] }
 
 [workspace.lints.clippy]
 all = "deny"

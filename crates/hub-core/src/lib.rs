@@ -1,6 +1,8 @@
 pub mod config;
 pub mod daemon;
+pub mod discovery;
 pub mod ingest;
+pub mod platform;
 pub mod security;
 pub mod send;
 pub mod status;
