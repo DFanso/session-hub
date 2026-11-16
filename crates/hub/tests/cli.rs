@@ -263,8 +263,8 @@ fn version_and_help() {
 fn unknown_command_exit_2() {
     let e = Env::new();
     for args in [
+        // No arguments is the TUI, not a usage error: it has its own manual check.
         &["bogus"][..],
-        &[],
         &["daemon"],
         &["daemon", "restart"],
         &["daemon", "status", "extra"],
@@ -275,4 +275,13 @@ fn unknown_command_exit_2() {
         assert!(text(&o.stderr).starts_with("Usage:"), "{args:?}");
         assert_eq!(text(&o.stdout), "");
     }
+}
+
+#[test]
+fn tui_start_warning_names_the_daemon_log() {
+    let w = hub::daemon_cmd::start_warning(Path::new("/d/run"));
+    assert!(
+        w.starts_with("The daemon is not running and did not start; the list may be stale. See ")
+    );
+    assert!(w.ends_with("daemon.log"));
 }

@@ -11,6 +11,7 @@ use hub_core::platform::Platform;
 use crate::daemon_cmd;
 
 pub const USAGE: &str = "Usage:
+  hub                     open the terminal UI (starts the daemon if needed)
   hub daemon run          run the daemon in this console
   hub daemon start        start the daemon hidden in the background
   hub daemon stop         stop the daemon
@@ -56,6 +57,49 @@ pub fn real_deps() -> CliDeps {
     }
 }
 
+/// `hub` with no arguments (`cmdTui`): the data folder, the daemon (started unless it runs; a start
+/// that fails is a warning on the last row, not an error), then the TUI.
+fn tui(d: &CliDeps) -> i32 {
+    let config = match d.config.as_ref() {
+        Ok(c) => c,
+        Err(e) => {
+            (d.err)(&format!("hub: {e}"));
+            return 1;
+        }
+    };
+    if !config.data_dir.exists()
+        && let Err(e) = d.platform.ensure_private_dir(&config.data_dir)
+    {
+        (d.err)(&format!(
+            "hub: cannot create {}: {e}",
+            config.data_dir.display()
+        ));
+        return 1;
+    }
+    let run_dir = config.run_dir();
+    let warning = match daemon_cmd::ensure_started(d, &run_dir) {
+        daemon_cmd::Started::Already(_) | daemon_cmd::Started::Started(_) => None,
+        daemon_cmd::Started::SpawnFailed(_) | daemon_cmd::Started::TimedOut => {
+            Some(daemon_cmd::start_warning(&run_dir))
+        }
+    };
+    let profiles: Vec<&str> = config.profiles.iter().map(|p| p.id.as_str()).collect();
+    let result = hub_tui::run_with_warning(
+        &config.db_path(),
+        d.platform.clone(),
+        &profiles,
+        daemon_cmd::daemon_running_probe(d, run_dir),
+        warning,
+    );
+    match result {
+        Ok(()) => 0,
+        Err(e) => {
+            (d.err)(&format!("hub: {e}"));
+            1
+        }
+    }
+}
+
 /// Runs one command; returns the process exit code.
 pub fn run(args: Vec<OsString>, deps: &CliDeps) -> i32 {
     let args: Vec<String> = args
@@ -68,8 +112,7 @@ pub fn run(args: Vec<OsString>, deps: &CliDeps) -> i32 {
         2
     };
     match args.first().map(String::as_str) {
-        // The TUI replaces this branch.
-        None => usage(),
+        None => tui(deps),
         Some("--version" | "-v") if rest.is_empty() => {
             (deps.out)(&format!("hub {}", env!("CARGO_PKG_VERSION")));
             0

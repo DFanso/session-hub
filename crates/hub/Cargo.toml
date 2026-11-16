@@ -25,6 +25,7 @@ path = "src/bin/hubw.rs"
 [dependencies]
 hub-core.workspace = true
 hub-platform = { path = "../hub-platform" }
+hub-tui = { path = "../hub-tui" }
 
 [target.'cfg(windows)'.dependencies]
 windows-sys.workspace = true

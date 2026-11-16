@@ -189,36 +189,84 @@ fn detach(d: &CliDeps, cmd: &mut Command, windowless: bool) {
     }
 }
 
+/// How [`ensure_started`] ended.
+pub enum Started {
+    /// Our daemon already held the lock.
+    Already(u32),
+    Started(u32),
+    /// The process could not be spawned.
+    SpawnFailed(String),
+    /// Spawned, but no lock appeared within 5 s.
+    TimedOut,
+}
+
+/// Starts the daemon unless one runs (`startDaemon` in commands.ts); prints nothing. A start ends
+/// an earlier deliberate stop, running or not.
+pub fn ensure_started(d: &CliDeps, run_dir: &Path) -> Started {
+    let held = held_lock(d, run_dir);
+    let _ = fs::remove_file(run_dir.join(DAEMON_STOPPED_FILE));
+    if let Some(lock) = held {
+        return Started::Already(lock.pid);
+    }
+    if let Err(e) = spawn_daemon(d) {
+        return Started::SpawnFailed(e.to_string());
+    }
+    match wait_for(|| held_lock(d, run_dir)) {
+        Some(lock) => Started::Started(lock.pid),
+        None => Started::TimedOut,
+    }
+}
+
+/// The TUI's warning when the daemon is not running and did not start.
+pub fn start_warning(run_dir: &Path) -> String {
+    format!(
+        "The daemon is not running and did not start; the list may be stale. See {}",
+        daemon_log_path(run_dir).display()
+    )
+}
+
+pub fn daemon_log_path(run_dir: &Path) -> PathBuf {
+    run_dir.join("daemon.log")
+}
+
 pub fn start(d: &CliDeps) -> i32 {
     let config = match config(d) {
         Ok(c) => c,
         Err(code) => return code,
     };
     let run_dir = config.run_dir();
-    let held = held_lock(d, &run_dir);
-    // A start ends an earlier deliberate stop, running or not.
-    let _ = fs::remove_file(run_dir.join(DAEMON_STOPPED_FILE));
-    if let Some(lock) = held {
-        (d.out)(&format!("ALREADY RUNNING pid={}", lock.pid));
-        return 0;
-    }
-    if let Err(e) = spawn_daemon(d) {
-        (d.err)(&format!("hub: cannot start the daemon: {e}"));
-        return 1;
-    }
-    match wait_for(|| held_lock(d, &run_dir)) {
-        Some(lock) => {
-            (d.out)(&format!("STARTED pid={}", lock.pid));
+    match ensure_started(d, &run_dir) {
+        Started::Already(pid) => {
+            (d.out)(&format!("ALREADY RUNNING pid={pid}"));
             0
         }
-        None => {
+        Started::SpawnFailed(e) => {
+            (d.err)(&format!("hub: cannot start the daemon: {e}"));
+            1
+        }
+        Started::Started(pid) => {
+            (d.out)(&format!("STARTED pid={pid}"));
+            0
+        }
+        Started::TimedOut => {
             (d.err)(&format!(
                 "FAILED: the daemon did not start within 5 s; see {}",
-                run_dir.join("daemon.log").display()
+                daemon_log_path(&run_dir).display()
             ));
             1
         }
     }
+}
+
+/// The check `hub daemon status` makes, as a closure the TUI asks on every refresh: true while a
+/// lock names our daemon (or a live process that cannot be verified).
+pub fn daemon_running_probe(d: &CliDeps, run_dir: PathBuf) -> Box<dyn Fn() -> bool> {
+    let platform = d.platform.clone();
+    Box::new(move || {
+        read_lock(&run_dir).is_some_and(|lock| {
+            identify_daemon(&lock, &*platform, false) != DaemonIdentity::Foreign
+        })
+    })
 }
 
 /// True when stopped (or never running). Only our daemon is killed: its identity (`Ours`) and its
