@@ -7,6 +7,9 @@ use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
+use hub_core::daemon::lock::{
+    DaemonIdentity, LOCK_FILE, LockInfo, LockOptions, acquire_lock, format_lock, identify_daemon,
+};
 use hub_core::platform::{FocusResult, Platform};
 use hub_platform::exec::{self, DEFAULT_TIMEOUT, ExecResult};
 use hub_platform::windows::acl::{Identity, blocking_principals, parse_principals, parse_whoami};
@@ -332,6 +335,57 @@ fn pid_zero_is_never_alive_and_has_no_info() {
     assert!(!p.process_alive(0));
     assert_eq!(p.process_start_time(0), None);
     assert_eq!(p.process_image_path(0), None);
+}
+
+// ---------------------------------------------------------------- daemon lock, real queries
+
+fn real_identify(l: &LockInfo) -> DaemonIdentity {
+    identify_daemon(l, hub_platform::native().as_ref(), false)
+}
+
+/// Port of lock.test.ts "real check" (Windows-only there; every OS here).
+#[test]
+fn lock_real_check_a_live_process_with_the_recorded_start_time_is_ours_another_start_is_stale() {
+    let p = hub_platform::native();
+    let d = tmp("hub-lock-");
+    let file = d.path().join(LOCK_FILE);
+    let started = p.process_start_time(std::process::id()).expect("own start");
+    // The start time is stable from one read to the next.
+    assert_eq!(p.process_start_time(std::process::id()), Some(started));
+    let at = |t: i64| {
+        format_lock(&LockInfo {
+            pid: std::process::id(),
+            started_at: Some(t),
+        })
+    };
+    std::fs::write(&file, at(started)).unwrap();
+    let opts = || LockOptions {
+        identify: &real_identify,
+        started_at: None,
+    };
+    assert!(acquire_lock(d.path(), opts()).unwrap().is_none());
+    // The same pid recorded with another start time: the pid was reused.
+    std::fs::write(&file, at(started - 60_000)).unwrap();
+    let lock = acquire_lock(d.path(), opts()).unwrap();
+    assert!(lock.is_some());
+}
+
+#[test]
+fn lock_real_check_a_legacy_lock_naming_another_program_is_stale() {
+    let d = tmp("hub-lock-");
+    let mut child = Command::new(HELPER).args(["sleep", "30"]).spawn().unwrap();
+    std::fs::write(d.path().join(LOCK_FILE), child.id().to_string()).unwrap();
+    let lock = acquire_lock(
+        d.path(),
+        LockOptions {
+            identify: &real_identify,
+            started_at: None,
+        },
+    )
+    .unwrap();
+    assert!(lock.is_some());
+    child.kill().unwrap();
+    child.wait().unwrap();
 }
 
 /// Spawns `helper tree` hidden and returns the child and its grandchild's pid.

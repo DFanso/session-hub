@@ -343,7 +343,7 @@ fn hex4(b: &[u8]) -> Option<u16> {
 /// JS `JSON.parse` accepts unpaired `\uD800`-`\uDFFF` escapes (as lone surrogates); serde_json
 /// rejects them. Rewrite each unpaired one to `\uFFFD`; valid pairs and escaped backslashes are
 /// left alone. Borrows when nothing changes.
-fn replace_lone_surrogates(line: &str) -> Cow<'_, str> {
+pub(crate) fn replace_lone_surrogates(line: &str) -> Cow<'_, str> {
     let b = line.as_bytes();
     let mut out: Option<String> = None;
     let mut copied = 0;
