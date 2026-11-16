@@ -58,9 +58,10 @@ mod real {
         }
 
         /// `taskkill /PID <pid> /T /F` (the process and its children), bounded to 2 s. Port of
-        /// `src/util/taskkill.ts`; the caller also kills the root directly.
+        /// `src/util/taskkill.ts`; the caller also kills the root directly. Refuses pid 0 (idle),
+        /// 4 (System) and our own pid.
         fn kill_tree(&self, pid: u32) -> io::Result<()> {
-            if pid == 0 || pid == std::process::id() {
+            if hub_core::platform::is_dangerous_kill_pid(pid) {
                 return Err(io::Error::new(
                     io::ErrorKind::InvalidInput,
                     format!("kill_tree refuses pid {pid}"),

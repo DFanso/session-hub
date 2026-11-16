@@ -61,7 +61,8 @@ pub fn image_path(pid: u32) -> Option<PathBuf> {
 /// unreaped leader (a zombie) whose group still holds live grandchildren. That is safe because a
 /// pgid cannot be reused while its group has members. Only when the group kill also finds nothing
 /// is the pid killed alone (an error when it is gone too). Refuses pid 0, our own pid and our own
-/// process group, so it never signals this process.
+/// process group, so it never signals this process, and pid 1: `getpgid(1)` is 1, and `killpg(1)`
+/// is `kill(-1)`, which signals every process we may signal (ruling R11).
 pub fn kill_tree(pid: u32) -> io::Result<()> {
     let refuse = || {
         io::Error::new(
@@ -69,8 +70,11 @@ pub fn kill_tree(pid: u32) -> io::Result<()> {
             format!("kill_tree refuses pid {pid}"),
         )
     };
+    if hub_core::platform::is_dangerous_kill_pid(pid) {
+        return Err(refuse());
+    }
     let p = rustix_pid(pid).ok_or_else(refuse)?;
-    if pid == std::process::id() || p == getpgrp() {
+    if p == getpgrp() {
         return Err(refuse());
     }
     let try_group = match getpgid(Some(p)) {

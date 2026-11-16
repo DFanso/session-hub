@@ -385,6 +385,24 @@ fn kill_tree_of_a_missing_pid_is_an_error() {
     assert!(p.kill_tree(pid).is_err());
 }
 
+/// Ruling R11: pids whose tree kill would reach other processes are refused before any signal or
+/// `taskkill`.
+#[test]
+fn kill_tree_refuses_dangerous_pids() {
+    let p = hub_platform::native();
+    let refused = |pid: u32| {
+        p.kill_tree(pid)
+            .is_err_and(|e| e.kind() == std::io::ErrorKind::InvalidInput)
+    };
+    assert!(refused(0));
+    assert!(refused(std::process::id()));
+    if cfg!(windows) {
+        assert!(refused(4));
+    } else {
+        assert!(refused(1));
+    }
+}
+
 // ---------------------------------------------------------------- Unix
 
 #[cfg(unix)]

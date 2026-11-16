@@ -294,6 +294,20 @@ fn fake_platform_kill_tree_really_kills_and_reports_a_missing_pid() {
     assert!(fp.kill_tree(child.id()).is_err());
 }
 
+/// Ruling R11: pids whose kill would reach other processes are refused without running anything.
+/// pid 0 is checked only after pid 1: an unguarded `kill -9 0` would end this test run's group.
+#[test]
+fn fake_platform_kill_tree_refuses_dangerous_pids() {
+    let fp = FakePlatform;
+    let refused = |pid: u32| {
+        fp.kill_tree(pid)
+            .is_err_and(|e| e.kind() == std::io::ErrorKind::InvalidInput)
+    };
+    assert!(refused(if cfg!(windows) { 4 } else { 1 }));
+    assert!(refused(0));
+    assert!(refused(std::process::id()));
+}
+
 // ---------------------------------------------------------------- realClaudeCli with fake
 
 /// Passes env to the fake child through the spawn hook, so no test touches the process env.

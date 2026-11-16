@@ -39,10 +39,18 @@ pub trait Platform: Send + Sync {
     fn focus_session_window(&self, pid: u32) -> FocusResult;
 }
 
+/// True for a pid no tree kill may target: this process, pid 0 (on Unix our own process group, on
+/// Windows the idle process), on Unix pid 1 (`killpg(1)` is `kill(-1)`, a signal to every process
+/// we may signal) and on Windows pid 4 (System). Every [`Platform::kill_tree`] refuses these.
+pub fn is_dangerous_kill_pid(pid: u32) -> bool {
+    pid == 0 || pid == std::process::id() || (cfg!(unix) && pid == 1) || (cfg!(windows) && pid == 4)
+}
+
 /// For tests: hidden spawn does nothing; `kill_tree` really kills the process (and on Windows its
 /// children, through `taskkill /T`), so tests of timeouts and stops end their fake children. Every
 /// dir is private and `ensure_private_dir` does nothing; only the own pid is alive, and no start
-/// time or image is known (like TS's fake); focus is unsupported.
+/// time or image is known (like TS's fake); focus is unsupported. Dangerous pids
+/// ([`is_dangerous_kill_pid`]) are refused like the real platforms do.
 #[derive(Debug, Default, Clone, Copy)]
 pub struct FakePlatform;
 
@@ -70,6 +78,12 @@ impl Platform for FakePlatform {
     fn spawn_hidden(&self, _cmd: &mut Command) {}
 
     fn kill_tree(&self, pid: u32) -> io::Result<()> {
+        if is_dangerous_kill_pid(pid) {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                format!("kill_tree refuses pid {pid}"),
+            ));
+        }
         let mut cmd = if cfg!(windows) {
             let mut c = Command::new(crate::sysbin::taskkill());
             c.args(["/PID", &pid.to_string(), "/T", "/F"]);
