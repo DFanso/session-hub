@@ -99,6 +99,8 @@ fn spawn_daemon(d: &CliDeps) -> io::Result<()> {
         cmd.current_dir(dir);
     }
     detach(d, &mut cmd, windowless);
+    #[cfg(windows)]
+    uninherit_std_handles();
     cmd.spawn().map(drop)
 }
 
@@ -111,6 +113,30 @@ fn detach(_d: &CliDeps, cmd: &mut Command, _windowless: bool) {
     // SAFETY: setsid is async-signal-safe and touches no memory of ours.
     unsafe {
         cmd.pre_exec(|| rustix::process::setsid().map(drop).map_err(io::Error::from));
+    }
+}
+
+/// Windows hands every inheritable handle to the child, not only the stdio it is given. Our own
+/// stdout/stderr may be a caller's pipe (the tray's bridge, a test): if the daemon inherited it, the
+/// caller would wait for end of file until the daemon exits. Not inheritable: only the daemon's
+/// own NUL stdio goes through.
+#[cfg(windows)]
+fn uninherit_std_handles() {
+    use windows_sys::Win32::Foundation::{
+        HANDLE_FLAG_INHERIT, INVALID_HANDLE_VALUE, SetHandleInformation,
+    };
+    use windows_sys::Win32::System::Console::{
+        GetStdHandle, STD_ERROR_HANDLE, STD_INPUT_HANDLE, STD_OUTPUT_HANDLE,
+    };
+    for id in [STD_INPUT_HANDLE, STD_OUTPUT_HANDLE, STD_ERROR_HANDLE] {
+        // SAFETY: plain Win32 calls on this process's own standard handles; a failure only
+        // leaves the handle as it was.
+        unsafe {
+            let h = GetStdHandle(id);
+            if !h.is_null() && h != INVALID_HANDLE_VALUE {
+                SetHandleInformation(h, HANDLE_FLAG_INHERIT, 0);
+            }
+        }
     }
 }
 
