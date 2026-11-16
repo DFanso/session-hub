@@ -3,6 +3,7 @@
 //! - `sleep <secs>`: sleeps
 //! - `echo-env-exit <VAR> <code>`: prints the value of env VAR and exits with `code`
 //! - `tree`: starts a grandchild (`sleep 60`, stdio null), prints its pid and a newline, sleeps 60 s
+//! - `tree-exit`: like `tree` but exits at once, leaving the grandchild in its process group
 use std::io::Write;
 use std::process::{Command, Stdio};
 use std::time::Duration;
@@ -19,7 +20,7 @@ fn main() {
             let _ = out.flush();
             std::process::exit(arg(2).parse().unwrap_or(0));
         }
-        "tree" => {
+        mode @ ("tree" | "tree-exit") => {
             let me = std::env::current_exe().expect("current_exe");
             // Left running on purpose: the test checks that the tree kill ends it.
             #[allow(clippy::zombie_processes)]
@@ -34,7 +35,9 @@ fn main() {
             let _ = writeln!(out, "{}", gc.id());
             let _ = out.flush();
             drop(out);
-            std::thread::sleep(Duration::from_secs(60));
+            if mode == "tree" {
+                std::thread::sleep(Duration::from_secs(60));
+            }
         }
         other => {
             eprintln!("platform-helper: unknown mode {other:?}");

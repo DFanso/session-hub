@@ -336,8 +336,12 @@ fn pid_zero_is_never_alive_and_has_no_info() {
 
 /// Spawns `helper tree` hidden and returns the child and its grandchild's pid.
 fn spawn_tree(p: &dyn Platform) -> (Child, u32) {
+    spawn_tree_mode(p, "tree")
+}
+
+fn spawn_tree_mode(p: &dyn Platform, mode: &str) -> (Child, u32) {
     let mut cmd = Command::new(HELPER);
-    cmd.arg("tree")
+    cmd.arg(mode)
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::null());
@@ -461,6 +465,50 @@ mod unix {
         let mut child = Command::new(HELPER).args(["sleep", "30"]).spawn().unwrap();
         p.kill_tree(child.id()).unwrap();
         assert!(!child.wait().unwrap().success());
+        assert!(p.process_alive(std::process::id()));
+    }
+
+    /// The group leader has exited but is not reaped (a zombie; macOS `getpgid` then gives ESRCH)
+    /// while a grandchild still runs in its group: the group kill must still reach the grandchild.
+    #[test]
+    fn kill_tree_reaches_the_group_of_an_unreaped_exited_leader() {
+        use std::io::Read;
+        let p = hub_platform::native();
+        let mut cmd = Command::new(HELPER);
+        cmd.arg("tree-exit")
+            .stdin(Stdio::null())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::null());
+        p.spawn_hidden(&mut cmd);
+        let mut child = cmd.spawn().unwrap();
+        let mut text = String::new();
+        // EOF: the child closed stdout by exiting (the grandchild's stdout is null).
+        child
+            .stdout
+            .take()
+            .unwrap()
+            .read_to_string(&mut text)
+            .unwrap();
+        let gc: u32 = text.trim().parse().expect("grandchild pid");
+        std::thread::sleep(Duration::from_millis(200));
+        assert!(p.process_alive(gc));
+        let _ = p.kill_tree(child.id());
+        let gone = eventually(Duration::from_secs(5), || !p.process_alive(gc));
+        if !gone {
+            let _ = rustix::process::kill_process(
+                rustix::process::Pid::from_raw(gc as i32).unwrap(),
+                rustix::process::Signal::KILL,
+            );
+        }
+        child.wait().unwrap();
+        assert!(gone, "grandchild {gc} survived the tree kill");
+    }
+
+    #[test]
+    fn kill_tree_never_signals_the_own_process_group() {
+        let p = hub_platform::native();
+        let own_group = rustix::process::getpgrp().as_raw_nonzero().get() as u32;
+        assert!(p.kill_tree(own_group).is_err());
         assert!(p.process_alive(std::process::id()));
     }
 

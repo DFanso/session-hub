@@ -3,7 +3,10 @@
 use std::io;
 use std::path::PathBuf;
 
-use rustix::process::{Pid, Signal, getpgid, kill_process, kill_process_group, test_kill_process};
+use rustix::io::Errno;
+use rustix::process::{
+    Pid, Signal, getpgid, getpgrp, kill_process, kill_process_group, test_kill_process,
+};
 use sysinfo::{ProcessRefreshKind, ProcessesToUpdate, System, UpdateKind};
 
 fn rustix_pid(pid: u32) -> Option<Pid> {
@@ -18,7 +21,7 @@ pub fn alive(pid: u32) -> bool {
     };
     match test_kill_process(p) {
         Ok(()) => true,
-        Err(e) => e == rustix::io::Errno::PERM,
+        Err(e) => e == Errno::PERM,
     }
 }
 
@@ -51,22 +54,33 @@ pub fn image_path(pid: u32) -> Option<PathBuf> {
     )
 }
 
-/// SIGKILL to the process group `pid` leads (a child spawned hidden); a pid that leads no group of
-/// its own is killed alone, as is one whose group kill fails with ESRCH or EPERM. Refuses pid 0
-/// and our own pid, so it can never reach this process's group.
+/// SIGKILL to the process group `pid` leads (a child spawned hidden has pgid == pid); a pid that
+/// leads no group of its own is killed alone.
+///
+/// When `getpgid` gives ESRCH the group is still tried: macOS reports ESRCH for an exited but
+/// unreaped leader (a zombie) whose group still holds live grandchildren. That is safe because a
+/// pgid cannot be reused while its group has members. Only when the group kill also finds nothing
+/// is the pid killed alone (an error when it is gone too). Refuses pid 0, our own pid and our own
+/// process group, so it never signals this process.
 pub fn kill_tree(pid: u32) -> io::Result<()> {
-    let p = rustix_pid(pid)
-        .filter(|_| pid != std::process::id())
-        .ok_or_else(|| {
-            io::Error::new(
-                io::ErrorKind::InvalidInput,
-                format!("kill_tree refuses pid {pid}"),
-            )
-        })?;
-    if getpgid(Some(p)) == Ok(p) {
+    let refuse = || {
+        io::Error::new(
+            io::ErrorKind::InvalidInput,
+            format!("kill_tree refuses pid {pid}"),
+        )
+    };
+    let p = rustix_pid(pid).ok_or_else(refuse)?;
+    if pid == std::process::id() || p == getpgrp() {
+        return Err(refuse());
+    }
+    let try_group = match getpgid(Some(p)) {
+        Ok(pgid) => pgid == p,
+        Err(e) => e == Errno::SRCH,
+    };
+    if try_group {
         match kill_process_group(p, Signal::KILL) {
             Ok(()) => return Ok(()),
-            Err(e) if e == rustix::io::Errno::SRCH || e == rustix::io::Errno::PERM => {}
+            Err(e) if e == Errno::SRCH || e == Errno::PERM => {}
             Err(e) => return Err(e.into()),
         }
     }
