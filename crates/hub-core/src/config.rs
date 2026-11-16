@@ -67,11 +67,19 @@ pub struct Config {
 }
 
 impl Config {
-    /// A Windows-style data dir (backslashes only) keeps its separator even when built on another OS.
+    /// The separator follows the data dir's own style, so a Windows-style dir built on Unix (and the
+    /// reverse) still gets its own separator; `Path::join` would use the host's.
     fn child(&self, name: &str) -> PathBuf {
         match self.data_dir.to_str() {
-            Some(d) if d.contains('\\') && !d.contains('/') => PathBuf::from(join(d, '\\', name)),
-            _ => self.data_dir.join(name),
+            Some(d) => {
+                let sep = if d.contains('\\') && !d.contains('/') {
+                    '\\'
+                } else {
+                    '/'
+                };
+                PathBuf::from(join(d, sep, name))
+            }
+            None => self.data_dir.join(name),
         }
     }
     pub fn run_dir(&self) -> PathBuf {
