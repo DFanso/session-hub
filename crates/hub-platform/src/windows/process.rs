@@ -41,22 +41,31 @@ fn open(pid: u32) -> Result<Handle, u32> {
     }
 }
 
+/// False once the process has exited (its object can outlive it while anyone holds a handle).
+fn running(h: &Handle) -> bool {
+    let mut code = 0u32;
+    // SAFETY: valid handle and out pointer.
+    let ok = unsafe { GetExitCodeProcess(h.0, &mut code) } != 0;
+    !ok || code == STILL_ACTIVE as u32
+}
+
+/// A query handle to a process that is still running.
+fn open_running(pid: u32) -> Option<Handle> {
+    open(pid).ok().filter(running)
+}
+
 /// True while the process runs; also when it exists but may not be opened (access denied).
 pub fn alive(pid: u32) -> bool {
     match open(pid) {
         Err(e) => e == ERROR_ACCESS_DENIED,
-        Ok(h) => {
-            let mut code = 0u32;
-            // SAFETY: valid handle and out pointer.
-            let ok = unsafe { GetExitCodeProcess(h.0, &mut code) } != 0;
-            !ok || code == STILL_ACTIVE as u32
-        }
+        Ok(h) => running(&h),
     }
 }
 
-/// Full Win32 path of the executable; None when the pid is invalid, gone or cannot be opened.
+/// Full Win32 path of the executable; None when the pid is invalid, gone (also exited but still
+/// held open) or cannot be opened.
 pub fn image_path(pid: u32) -> Option<PathBuf> {
-    let h = open(pid).ok()?;
+    let h = open_running(pid)?;
     let mut buf = vec![0u16; MAX_PATH_UNITS as usize];
     let mut size = MAX_PATH_UNITS;
     // SAFETY: the buffer holds `size` units; `size` is updated to the length written.
@@ -67,10 +76,10 @@ pub fn image_path(pid: u32) -> Option<PathBuf> {
     Some(PathBuf::from(OsString::from_wide(&buf[..len])))
 }
 
-/// GetProcessTimes creation time in epoch ms; None when the pid is invalid, gone or cannot be
-/// opened. With the pid it names one process: a pid reused later has a later start time.
+/// GetProcessTimes creation time in epoch ms; None when the pid is invalid, gone (also exited but
+/// still held open) or cannot be opened. With the pid it names one process: a pid reused later has a later start time.
 pub fn start_time(pid: u32) -> Option<i64> {
-    let h = open(pid).ok()?;
+    let h = open_running(pid)?;
     let zero = FILETIME {
         dwLowDateTime: 0,
         dwHighDateTime: 0,
