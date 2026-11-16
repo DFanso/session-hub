@@ -35,3 +35,16 @@ pub fn is_js_space(c: char) -> bool {
                 | '\u{FEFF}'
     )
 }
+
+/// JS `s.split(/\r?\n/)`: a `\r` is dropped only before a `\n`, so a last line keeps its own.
+pub fn split_js_lines(s: &str) -> impl Iterator<Item = &str> {
+    let mut pieces = s.split('\n').peekable();
+    std::iter::from_fn(move || {
+        let piece = pieces.next()?;
+        Some(if pieces.peek().is_some() {
+            piece.strip_suffix('\r').unwrap_or(piece)
+        } else {
+            piece
+        })
+    })
+}

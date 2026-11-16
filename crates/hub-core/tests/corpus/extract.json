@@ -190,5 +190,93 @@
   {
     "name": "focus:3",
     "input": "**Progress: about 5% overall. Phase: x.**\n\n### Waiting on you\n- Q1: xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxé tail\n- Q2: xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx😀 tail\n"
+  },
+  {
+    "name": "port:round 0.49999999999999994",
+    "input": "**Progress: 0.49999999999999994% overall. Phase: a.**"
+  },
+  {
+    "name": "port:round halves up",
+    "input": "**Progress: 2.5% overall. Phase: a.**\n### What's remaining\n- a\n"
+  },
+  {
+    "name": "port:round 99.5",
+    "input": "Progress: about 99.5% overall. Phase: **b**"
+  },
+  {
+    "name": "port:round 100.5 clamped",
+    "input": "  *Progress: 100.5% overall.  Phase: c."
+  },
+  {
+    "name": "port:crlf and lone trailing cr",
+    "input": "### Waiting on you\r\n- Q1 a\r\n- Q2 b\r"
+  },
+  {
+    "name": "port:line separator in bullet",
+    "input": "### Waiting on you\n- Q1 a b\n- Q2 c\n"
+  },
+  {
+    "name": "port:nel is not js space, bom is",
+    "input": "### What's remaining\n﻿- a\n- b\n- c\n"
+  },
+  {
+    "name": "port:kelvin and long s do not fold",
+    "input": "### What’ſ remaining\n- a\n**Progress: 5% overall. Phase: x.**\nMy picK: z\nmy PICK: y\nRECOMMENDK w\n"
+  },
+  {
+    "name": "port:curly apostrophe heading",
+    "input": "## **What’s Remaining:** ##\n- a\n  - a1\n  - \n- b:\n  - b1\n"
+  },
+  {
+    "name": "port:underscores",
+    "input": "### Waiting on you\n- Q1 _a__ b_ __c__d __e_ f_g_ _h_\n- Q2 x_y_z _ a_ _b _ __ __\n- Q3 _é_ é_x_ (_y_) _z_. __w__\n"
+  },
+  {
+    "name": "port:stars",
+    "input": "### Waiting on you\n- Q1 ****x **y* *z** ***w*** * a * **\n- Q2 2*3*4 **b**c\n"
+  },
+  {
+    "name": "port:code holder injection",
+    "input": "### Waiting on you\n- Q1 0 and `k` 1 99999999999999999999 007\n- Q2 `a`  `b`\n"
+  },
+  {
+    "name": "port:new variants",
+    "input": "### Waiting on you\n- **New: SH9** foo\n- new:Q1 x\n- NEW:** Q2: y\n- **new:**Q3 – z\n- New: `Q4` code\n"
+  },
+  {
+    "name": "port:id edges",
+    "input": "### Waiting on you\n- Q12a x\n- AB1-CD2-x y\n- Q1–Q3 ranged\n- Q1 – Q3 dash\n- Q1 ,b\n- Q1 -\n- Q1 —　x\n- AUTH-Q1-Q3 r\n- Q3-Q1 nr\n- Q1:\n- AB2-Q3 one\n- A1-B2-C3 x\n- ABCDEFGH1 long\n- AB12345678 x\n"
+  },
+  {
+    "name": "port:tabs and nesting",
+    "input": "### Waiting on you\n- Q1 top\n\t- child one\n\t  more child\n    - child two\n- Q2 next\n\n  continued\n\nafter\n"
+  },
+  {
+    "name": "port:recommendation leads",
+    "input": "**Progress: 5% overall. Phase: x.**\n# recommend heading\n1) I recommend this\n• my pick x\n(recommended) ok\n- **Recommend:** `a b`\n2. \n"
+  },
+  {
+    "name": "port:fences",
+    "input": "**Progress: 5% overall. Phase: x.**\n   ```js\n### Waiting on you\n- Q1 hidden\n```\n### Waiting on you\n- Q2 shown\n```\nunclosed\n- Q3 hidden\n"
+  },
+  {
+    "name": "port:bold heading rests",
+    "input": "**Waiting on you**: Q1 do it\n**What's remaining:** a\rb\n**What's remaining** c\n"
+  },
+  {
+    "name": "port:unicode spaces",
+    "input": "### Waiting on you\n- Q1　x\n- Q2: y\n*\tQ3 z\n"
+  },
+  {
+    "name": "port:only nothing",
+    "input": "**What's remaining:** _Nothing._\n**Waiting on you** **nothing**\n"
+  },
+  {
+    "name": "port:plain paragraph items",
+    "input": "### What's remaining\nfirst line\ncontinues\n\nsecond para\n### Waiting on you\nQ1 plain\n"
+  },
+  {
+    "name": "port:table and break end section",
+    "input": "### Waiting on you\n- Q1 a\n***\n- Q2 b\n### What's remaining\n- r\n| t |\n- s\n"
   }
 ]
