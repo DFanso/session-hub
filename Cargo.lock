@@ -147,6 +147,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "hub"
+version = "0.1.0"
+dependencies = [
+ "hub-core",
+ "hub-platform",
+ "rustix",
+ "tempfile",
+]
+
+[[package]]
 name = "hub-core"
 version = "0.1.0"
 dependencies = [
