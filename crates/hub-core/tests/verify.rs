@@ -671,12 +671,12 @@ fn expire_sends_marks_old_pending_and_held_sends_expired_and_counts_them() {
         s.state = SendState::Failed;
     });
     let now = T0 + WINDOW + 1;
-    assert_eq!(expire_sends(&f.store, now), 2);
+    assert_eq!(expire_sends(&f.store, now).unwrap(), 2);
     assert_eq!(f.state(old1), "expired");
     assert_eq!(f.state(old2), "expired");
     assert_eq!(f.state(fresh), "pending");
     assert_eq!(f.state(failed), "failed");
-    assert_eq!(expire_sends(&f.store, now), 0);
+    assert_eq!(expire_sends(&f.store, now).unwrap(), 0);
 }
 
 #[test]
@@ -714,4 +714,14 @@ fn a_held_notice_applies_only_to_the_newest_pending_send_of_the_session() {
     f.checker(T0 + 5000)(&f.store, "s1", &[held(T0 + 3000)]);
     assert_eq!(f.state(older), "pending");
     assert_eq!(f.state(newer), "held");
+}
+
+#[test]
+fn expire_sends_returns_a_store_error_instead_of_swallowing_it() {
+    let f = fixture();
+    f.create("a", |s| s.created_at = T0);
+    let ro = Store::open_read_only(&f.path).unwrap();
+    // The read of open sends works; the expiring write fails on the read-only connection.
+    assert!(expire_sends(&ro, T0 + WINDOW + 1).is_err());
+    assert_eq!(f.state(1), "pending");
 }

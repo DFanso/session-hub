@@ -416,19 +416,17 @@ fn verify_sends(
     Ok(())
 }
 
-/// Marks pending/held sends older than the delivery window expired. Returns how many.
-pub fn expire_sends(store: &Store, now: i64) -> usize {
-    let Ok(open) = store.open_sends(None) else {
-        return 0;
-    };
-    open.iter()
-        .filter(|s| {
-            s.id.is_some_and(|id| {
-                now - s.created_at > WINDOW_MS
-                    && store
-                        .transition_send(id, SendState::Expired, None)
-                        .unwrap_or(false)
-            })
-        })
-        .count()
+/// Marks pending/held sends older than the delivery window expired. Returns how many. The first
+/// store error aborts and is returned (TS throws); the caller logs it.
+pub fn expire_sends(store: &Store, now: i64) -> Result<usize, StoreError> {
+    let mut n = 0;
+    for s in store.open_sends(None)? {
+        if let Some(id) = s.id
+            && now - s.created_at > WINDOW_MS
+            && store.transition_send(id, SendState::Expired, None)?
+        {
+            n += 1;
+        }
+    }
+    Ok(n)
 }
