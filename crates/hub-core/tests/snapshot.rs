@@ -62,7 +62,7 @@ fn totals_count_items_and_approvals() {
     let mut c = session("C", "c");
     c.ended_at = Some(5000);
     store.upsert_session(&c).unwrap();
-    let snap = read_snapshot(&store, true, &KNOWN, NOW);
+    let snap = read_snapshot(&store, true, &KNOWN, NOW).unwrap();
     assert_eq!(
         serde_json::to_value(snap.totals).unwrap(),
         json!({"waitingItems": 2, "needsApproval": 1, "live": 2})
@@ -74,7 +74,7 @@ fn totals_count_items_and_approvals() {
 fn cleans_strings() {
     let (_d, store) = open();
     store.upsert_session(&session("s1", "\x1b[31mX")).unwrap();
-    let snap = read_snapshot(&store, true, &KNOWN, NOW);
+    let snap = read_snapshot(&store, true, &KNOWN, NOW).unwrap();
     assert_eq!(snap.sessions[0].name, clean_text("\x1b[31mX"));
     assert!(!snap.sessions[0].name.contains('\x1b'));
 }
@@ -96,7 +96,7 @@ fn cleans_status_strings() {
         recommendations: vec!["\x1b[1mrec".into()],
     };
     store.set_status("s1", &st, "r1", "t1").unwrap();
-    let s = &read_snapshot(&store, true, &KNOWN, NOW).sessions[0];
+    let s = &read_snapshot(&store, true, &KNOWN, NOW).unwrap().sessions[0];
     let st = s.status.as_ref().unwrap();
     assert_eq!(st.phase.as_deref(), Some(clean_text("\x1b[31mph").as_str()));
     assert!(!serde_json::to_string(st).unwrap().contains("\\u001b"));
@@ -109,7 +109,8 @@ fn cleans_status_strings() {
 fn meta_daemon_follows_the_flag() {
     let (_d, store) = open();
     let d = |r| {
-        serde_json::to_value(read_snapshot(&store, r, &KNOWN, NOW).meta).unwrap()["daemon"].clone()
+        serde_json::to_value(read_snapshot(&store, r, &KNOWN, NOW).unwrap().meta).unwrap()["daemon"]
+            .clone()
     };
     assert_eq!(d(false), json!("stopped"));
     assert_eq!(d(true), json!("running"));
@@ -121,7 +122,7 @@ fn meta_carries_unknown_count_version_and_stale_profiles() {
     store.set_meta("unknown_count", Some("3")).unwrap();
     store.set_meta("unknown_version", Some("9.9")).unwrap();
     store.set_meta("stale_since:claude", Some("1234")).unwrap();
-    let meta = read_snapshot(&store, true, &KNOWN, NOW).meta;
+    let meta = read_snapshot(&store, true, &KNOWN, NOW).unwrap().meta;
     assert_eq!(meta.unknown_count, 3);
     assert_eq!(meta.unknown_version.as_deref(), Some("9.9"));
     assert_eq!(meta.stale.len(), 1);
@@ -140,7 +141,7 @@ fn meta_edge_values() {
     s.profile = "other".into();
     store.upsert_session(&s).unwrap();
     store.set_meta("stale_since:other", Some("77")).unwrap();
-    let meta = read_snapshot(&store, true, &KNOWN, NOW).meta;
+    let meta = read_snapshot(&store, true, &KNOWN, NOW).unwrap().meta;
     assert_eq!(meta.unknown_count, 0);
     assert_eq!(meta.unknown_version, None);
     assert_eq!(meta.stale.len(), 1);
@@ -152,6 +153,7 @@ fn stray_count_for_24h_after_last_stray_else_zero() {
     let (_d, store) = open();
     let at = |t: i64| {
         read_snapshot(&store, true, &KNOWN, t)
+            .unwrap()
             .meta
             .relay_stray_count
     };
@@ -178,7 +180,7 @@ fn snapshot_json_shape() {
     let (_d, store) = open();
     store.upsert_session(&session("A", "a")).unwrap();
     store.set_meta("unknown_version", Some("9.9")).unwrap();
-    let v = serde_json::to_value(read_snapshot(&store, true, &KNOWN, NOW)).unwrap();
+    let v = serde_json::to_value(read_snapshot(&store, true, &KNOWN, NOW).unwrap()).unwrap();
     let mut top = keys(&v);
     top.sort();
     assert_eq!(top, ["meta", "sessions", "totals"]);
@@ -218,7 +220,7 @@ fn snapshot_json_shape() {
     sorted.sort();
     assert_eq!(keys(&v["sessions"][0]), sorted);
     // serde_json's map is sorted here; the struct's own serialization keeps the TS key order
-    let snap = read_snapshot(&store, true, &KNOWN, NOW);
+    let snap = read_snapshot(&store, true, &KNOWN, NOW).unwrap();
     let text = serde_json::to_string(&snap.sessions[0]).unwrap();
     let pos: Vec<usize> = order
         .iter()
@@ -232,7 +234,10 @@ fn meta_numbers_parse_like_js_number() {
     let (_d, store) = open();
     let count = |v: &str| {
         store.set_meta("unknown_count", Some(v)).unwrap();
-        read_snapshot(&store, true, &KNOWN, NOW).meta.unknown_count
+        read_snapshot(&store, true, &KNOWN, NOW)
+            .unwrap()
+            .meta
+            .unknown_count
     };
     assert_eq!(count(" 7 "), 7);
     assert_eq!(count("1e2"), 100);
@@ -244,4 +249,23 @@ fn meta_numbers_parse_like_js_number() {
     assert_eq!(count("Infinity"), 0);
     assert_eq!(count("inf"), 0);
     assert_eq!(count(""), 0);
+}
+
+#[test]
+fn a_store_error_is_returned_not_an_empty_snapshot() {
+    let (dir, store) = open();
+    store.upsert_session(&session("A", "a")).unwrap();
+    // meta read fails: no such table
+    rusqlite::Connection::open(dir.path().join("index.db"))
+        .unwrap()
+        .execute_batch("DROP TABLE meta")
+        .unwrap();
+    assert!(read_snapshot(&store, true, &KNOWN, NOW).is_err());
+    // list_sessions fails too
+    rusqlite::Connection::open(dir.path().join("index.db"))
+        .unwrap()
+        .execute_batch("DROP TABLE status")
+        .unwrap();
+    assert!(store.list_sessions().is_err());
+    assert!(read_snapshot(&store, true, &KNOWN, NOW).is_err());
 }

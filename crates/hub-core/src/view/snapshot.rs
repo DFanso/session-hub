@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::config::STRAY_WARN_MS;
 use crate::security::clean_text;
-use crate::store::{LiveStatus, SessionView, Store, StoredStatus, ViewWaitingItem};
+use crate::store::{LiveStatus, SessionView, Store, StoreError, StoredStatus, ViewWaitingItem};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -103,25 +103,21 @@ fn js_finite_number(s: &str) -> Option<f64> {
     v.is_finite().then_some(v)
 }
 
-fn meta_number(store: &Store, key: &str) -> Option<f64> {
-    store
-        .get_meta(key)
-        .ok()
-        .flatten()
-        .and_then(|v| js_finite_number(&v))
+fn meta_number(store: &Store, key: &str) -> Result<Option<f64>, StoreError> {
+    Ok(store.get_meta(key)?.and_then(|v| js_finite_number(&v)))
 }
 
-/// Read-only snapshot. A failing store read yields the empty/default value for that part, so one
-/// bad row or key never takes the whole view down.
+/// Read-only snapshot. Any store error (locked, corrupt or newer-schema DB) is returned, never
+/// shown as an empty view: the caller keeps its previous snapshot and reports the error. Only a
+/// missing meta key (`Ok(None)`) falls back to its default.
 pub fn read_snapshot(
     store: &Store,
     daemon_running: bool,
     known_profiles: &[&str],
     now: i64,
-) -> HubSnapshot {
+) -> Result<HubSnapshot, StoreError> {
     let sessions: Vec<SessionView> = store
-        .list_sessions()
-        .unwrap_or_default()
+        .list_sessions()?
         .into_iter()
         .map(clean_session)
         .collect();
@@ -135,24 +131,22 @@ pub fn read_snapshot(
             profiles.push(p);
         }
     }
-    let stale = profiles
-        .iter()
-        .filter_map(|p| {
-            meta_number(store, &format!("stale_since:{p}")).map(|since| StaleProfile {
+    let mut stale = Vec::new();
+    for p in &profiles {
+        if let Some(since) = meta_number(store, &format!("stale_since:{p}"))? {
+            stale.push(StaleProfile {
                 profile: (*p).to_string(),
                 since: since as i64,
-            })
-        })
-        .collect();
-    let unknown_count = meta_number(store, "unknown_count").unwrap_or(0.0) as i64;
+            });
+        }
+    }
+    let unknown_count = meta_number(store, "unknown_count")?.unwrap_or(0.0) as i64;
     let unknown_version = store
-        .get_meta("unknown_version")
-        .ok()
-        .flatten()
+        .get_meta("unknown_version")?
         .filter(|v| !v.is_empty())
         .map(|v| clean_text(&v));
-    let stray = meta_number(store, "relay_stray_count");
-    let stray_recent = meta_number(store, "relay_stray_last")
+    let stray = meta_number(store, "relay_stray_count")?;
+    let stray_recent = meta_number(store, "relay_stray_last")?
         .is_some_and(|last| now as f64 - last <= STRAY_WARN_MS as f64);
     // JS Number.isSafeInteger(stray) && stray > 0
     let relay_stray_count = match stray {
@@ -170,7 +164,7 @@ pub fn read_snapshot(
             .count() as i64,
         live: live.len() as i64,
     };
-    HubSnapshot {
+    Ok(HubSnapshot {
         sessions,
         meta: SnapshotMeta {
             unknown_count,
@@ -184,5 +178,5 @@ pub fn read_snapshot(
             relay_stray_count,
         },
         totals,
-    }
+    })
 }
