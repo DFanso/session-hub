@@ -186,7 +186,7 @@ fn render_smoke_list_status_history_search() {
     assert!(s.contains("/work/alpha"), "{s}");
     assert!(s.contains("idle"), "{s}");
     // The selected session's Status pane.
-    assert!(s.contains("Q1 (answered) question Q1"), "{s}");
+    assert!(!s.contains("question Q1"), "{s}");
     assert!(s.contains("Q2 question Q2"), "{s}");
     assert!(s.contains("Progress: 40% overall. Phase: build"), "{s}");
     assert!(s.contains("What's remaining"), "{s}");
@@ -241,11 +241,11 @@ fn key_3_shows_exactly_one_line_and_1_goes_back() {
     d.key(ch('3'));
     let s = draw(&mut t, &mut d);
     assert_eq!(s.matches(KEY3).count(), 1, "{s}");
-    assert!(!s.contains("Q1 (answered)"), "{s}");
+    assert!(!s.contains("Q2 question Q2"), "{s}");
     d.key(ch('1'));
     let s = draw(&mut t, &mut d);
     assert!(!s.contains(KEY3), "{s}");
-    assert!(s.contains("Q1 (answered)"));
+    assert!(s.contains("Q2 question Q2"));
 }
 
 #[test]
@@ -616,7 +616,7 @@ fn key_release_events_are_ignored() {
         polls: 0,
     };
     run_loop(&mut t, &mut d, &mut ev, Duration::from_secs(1)).unwrap();
-    assert!(screen(&t).contains("Q1 (answered)"), "still on Status");
+    assert!(screen(&t).contains("Q2 question Q2"), "still on Status");
 }
 
 #[test]

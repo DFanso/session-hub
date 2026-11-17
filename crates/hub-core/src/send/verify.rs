@@ -24,6 +24,9 @@ const RETENTION: i64 = RETENTION_MS as i64;
 /// Detail of a send proved by a body the relay sent without the header.
 pub const HEADERLESS_DETAIL: &str = "delivered without the Session Hub header";
 
+/// Detail of a send proved by a body whose line break after the header the relay changed.
+pub const REFLOWED_DETAIL: &str = "delivered; the relay changed the line break after the header";
+
 /// The exact text the relay puts on SendMessage: header, blank line, the owner's text unchanged.
 pub fn build_message(text: &str) -> String {
     format!("{MESSAGE_HEADER}\n\n{text}")
@@ -175,15 +178,62 @@ fn after(ts: &str, created_at: i64) -> bool {
 enum Match {
     Full,
     Headerless,
+    Reflowed,
 }
 
-/// The send hashes a relay body can prove: the body as the whole message, and, when it lacks the
-/// header, the body with the header put back (match and the stray check use the same two).
-fn body_hashes(raw: &str) -> (String, Option<String>) {
+/// Length of the whitespace between the header line and the text: at least one line break,
+/// nothing else (JS `^(?:[ \t]*\r?\n)+`). `None` when there is no line break.
+fn header_break_len(after: &str) -> Option<usize> {
+    let b = after.as_bytes();
+    let mut end = 0;
+    loop {
+        let mut j = end;
+        while matches!(b.get(j), Some(b' ' | b'\t')) {
+            j += 1;
+        }
+        if b.get(j) == Some(&b'\r') {
+            j += 1;
+        }
+        if b.get(j) == Some(&b'\n') {
+            end = j + 1;
+        } else {
+            break;
+        }
+    }
+    (end > 0).then_some(end)
+}
+
+/// The send hashes a relay body can prove (match and the stray check use the same three).
+struct BodyHashes {
+    /// The body as the whole message.
+    full: String,
+    /// When the body lacks the header, the body with the header put back.
+    headerless: Option<String>,
+    /// When the body has the header, the text after a different line break, put back after the
+    /// header with the standard blank line.
+    reflowed: Option<String>,
+}
+
+fn body_hashes(raw: &str) -> BodyHashes {
     let body = normalize(raw);
-    let headerless =
-        (!body.starts_with(MESSAGE_HEADER)).then(|| sha256_hex(&normalize(&build_message(&body))));
-    (sha256_hex(&body), headerless)
+    let Some(after) = body.strip_prefix(MESSAGE_HEADER) else {
+        return BodyHashes {
+            full: sha256_hex(&body),
+            headerless: Some(sha256_hex(&normalize(&build_message(&body)))),
+            reflowed: None,
+        };
+    };
+    // The header with the owner's text after a different line break (seen live: one instead of a
+    // blank line). The text itself must still match exactly; only the break is put back.
+    let reflowed = header_break_len(after)
+        .map(|n| normalize(&build_message(&after[n..])))
+        .filter(|r| *r != body)
+        .map(|r| sha256_hex(&r));
+    BodyHashes {
+        full: sha256_hex(&body),
+        headerless: None,
+        reflowed,
+    }
 }
 
 /// How a record proves this send: `Full` when its body is the whole message, `Headerless` when the
@@ -202,11 +252,13 @@ fn match_record(send: &SendRow, r: &Classified) -> Option<Match> {
     if from_name != RELAY_NAME || !after(ts, send.created_at) {
         return None;
     }
-    let (full, headerless) = body_hashes(body);
-    if full == send.sha256 {
+    let h = body_hashes(body);
+    if h.full == send.sha256 {
         Some(Match::Full)
-    } else if headerless.as_deref() == Some(send.sha256.as_str()) {
+    } else if h.headerless.as_deref() == Some(send.sha256.as_str()) {
         Some(Match::Headerless)
+    } else if h.reflowed.as_deref() == Some(send.sha256.as_str()) {
+        Some(Match::Reflowed)
     } else {
         None
     }
@@ -217,7 +269,7 @@ fn delivery_index(send: &SendRow, records: &[&Classified]) -> Option<usize> {
     records.iter().position(|r| match_record(send, r).is_some())
 }
 
-/// How the first proving record matched (`"full"` or `"headerless"`), or `None` when none proves
+/// How the first proving record matched (`"full"`, `"headerless"` or `"reflowed"`), or `None` when none proves
 /// the send.
 pub fn delivery_match(send: &SendRow, records: &[Classified]) -> Option<&'static str> {
     records
@@ -226,6 +278,7 @@ pub fn delivery_match(send: &SendRow, records: &[Classified]) -> Option<&'static
         .map(|m| match m {
             Match::Full => "full",
             Match::Headerless => "headerless",
+            Match::Reflowed => "reflowed",
         })
 }
 
@@ -306,8 +359,11 @@ fn report_strays(
     }
     let known = store.send_hashes_since(session_id, now - RETENTION)?;
     for (ts, body) in relay {
-        let (full, headerless) = body_hashes(body);
-        if known.contains(&full) || headerless.is_some_and(|h| known.contains(&h)) {
+        let h = body_hashes(body);
+        if known.contains(&h.full)
+            || h.headerless.is_some_and(|x| known.contains(&x))
+            || h.reflowed.is_some_and(|x| known.contains(&x))
+        {
             continue;
         }
         // Older than retention: its send row may be purged (a transcript read again from the start).
@@ -386,18 +442,25 @@ fn verify_sends(
                 .collect();
             check_refs(s, &no_held, t)
         };
-        let headerless = next == SendState::Delivered
-            && idx
-                .is_some_and(|i| matches!(match_record(s, available[i]), Some(Match::Headerless)));
+        let how = if next == SendState::Delivered {
+            idx.and_then(|i| match_record(s, available[i]))
+        } else {
+            None
+        };
         if next == SendState::Delivered
             && let Some(i) = idx
         {
             available.remove(i);
         }
         // The store clears a failed send's detail when it moves to delivered; a body without the
-        // header is noted instead.
+        // header, or with another line break after it, is noted instead.
         if next != s.state {
-            store.transition_send(id, next, headerless.then_some(Some(HEADERLESS_DETAIL)))?;
+            let detail = match how {
+                Some(Match::Headerless) => Some(Some(HEADERLESS_DETAIL)),
+                Some(Match::Reflowed) => Some(Some(REFLOWED_DETAIL)),
+                _ => None,
+            };
+            store.transition_send(id, next, detail)?;
         }
     }
     Ok(())

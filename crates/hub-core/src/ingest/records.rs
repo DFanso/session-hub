@@ -8,7 +8,7 @@ use regex::Regex;
 use serde::Serialize;
 use serde_json::{Map, Value};
 
-use crate::text::is_js_space;
+use crate::text::{JS_SPACE_CLASS, is_js_space};
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
 #[serde(
@@ -91,6 +91,14 @@ static WRAP_OPEN: LazyLock<Regex> = LazyLock::new(|| {
 });
 static FROM_NAME: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r#"(?-u:\b)from-name="([^"]*)""#).expect("from-name regex"));
+/// A user record holding a local command's output rather than anything the owner typed
+/// (JS `^\s*<local-command-(?:stdout|stderr)>`).
+static LOCAL_COMMAND_OUTPUT: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(&format!(
+        "^[{JS_SPACE_CLASS}]*<local-command-(?:stdout|stderr)>"
+    ))
+    .expect("local command output regex")
+});
 static FROM_MODE: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r#"(?-u:\b)from-mode="([^"]*)""#).expect("from-mode regex"));
 
@@ -238,6 +246,10 @@ fn from_record(r: &Obj, rtype: &str) -> Classified {
             if is_true(r.get("isMeta")) {
                 return ignored("meta");
             }
+            // `/compact` writes its summary as a user record: Claude Code's text, not the owner's.
+            if is_true(r.get("isCompactSummary")) {
+                return ignored("compact-summary");
+            }
             if let Some(o) = origin {
                 let human = matches!(o, Value::Object(o)
                     if matches!(o.get("kind"), Some(Value::String(k)) if k == "human"));
@@ -251,6 +263,8 @@ fn from_record(r: &Obj, rtype: &str) -> Classified {
             match user_text(msg.get("content")) {
                 None => ignored("tool-result"),
                 Some(t) if t.is_empty() => ignored("empty"),
+                // The output of a local command; the owner's `<command-name>` stays a prompt.
+                Some(t) if LOCAL_COMMAND_OUTPUT.is_match(&t) => ignored("local-command-output"),
                 Some(text) => Classified::OwnerPrompt { uuid, ts, text },
             }
         }

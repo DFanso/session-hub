@@ -17,7 +17,7 @@
 - Never store or log `api-request`, `api-request-blob`, `api-request-shape`, `file-history-*`, attachment bodies, tool results. Logs never contain message text.
 - No network listener, socket or pipe of any kind.
 - Never load whole transcripts: read new bytes from stored offsets only.
-- `hub.db` schema stays v4, byte-identical DDL to `src/store/schema.ts`; a DB with a newer `schema_version` is refused.
+- `hub.db` schema stays v5, byte-identical DDL to `src/store/schema.ts`; a DB with a newer `schema_version` is refused.
 - Exact versions in `Cargo.toml` (`=x.y.z`), `Cargo.lock` committed, every cargo command in CI uses `--locked`.
 - CI images pinned: `ubuntu-24.04`, `windows-2025`, `macos-15`; actions pinned by full commit SHA with a version comment.
 - No changes under `src/`, `gui/`, `test/` (TS/C# keep working and `ci.yml` keeps passing).
@@ -238,13 +238,13 @@ pub fn classify(line: &str) -> Classified;
 
 - [ ] **Step 1: Write the failing tests:** one Rust test per test in `test/store/db.test.ts` (same rows, same assertions, including the ANSWERS_SQL query-plan test using `EXPLAIN QUERY PLAN`), plus:
   - `schema_matches_ts`: fresh DB's `sqlite_master` rows and schema version equal `golden("schema")`.
-  - `refuses_newer_schema`: set `schema_version` to 5 in a v4 DB → `open` returns `NewerSchema { found: 5, supported: 4 }`.
+  - `refuses_newer_schema`: set `schema_version` to 6 in a v5 DB → `open` returns `NewerSchema { found: 6, supported: 5 }`.
   - `waits_for_writer`: thread A opens the DB, `BEGIN IMMEDIATE`, sleeps 2 s, commits; thread B's `upsert_session` started during that window succeeds (busy_timeout 5000) and the row is present.
   - `pragmas`: `journal_mode=wal`, `synchronous=1`, `foreign_keys=1`, `secure_delete=1`, `busy_timeout=5000`.
 - [ ] **Step 2: Run** `cargo test -p hub-core --test store` → FAIL.
 - [ ] **Step 3: Implement** with `rusqlite` (`bundled` feature; FTS5 is included). Migrations in one `BEGIN IMMEDIATE` transaction each, exactly as `Store.migrate`. Purge in batches of 500 (`PURGE_BATCH`), then `wal_checkpoint(TRUNCATE)`; FTS query building identical to `ftsQuery`; `snippet(messages_fts, 0, '[', ']', '...', 12)`.
 - [ ] **Step 4: Run** → PASS.
-- [ ] **Step 5: Commit** `git commit -m "feat(rust): hub.db store, schema v4 identical to TS"`.
+- [ ] **Step 5: Commit** `git commit -m "feat(rust): hub.db store, schema v5 identical to TS"`.
 
 ### Task 8: Delivery checks run by the daemon
 

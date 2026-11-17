@@ -11,7 +11,7 @@ fn goldens_load() {
         );
     }
     let schema = common::golden_value("schema");
-    assert_eq!(schema["schema_version_max"], 4);
+    assert_eq!(schema["schema_version_max"], 5);
     assert!(!schema["sqlite_master"].as_array().unwrap().is_empty());
 }
 

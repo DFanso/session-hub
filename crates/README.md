@@ -8,7 +8,7 @@ manual testing only.
 
 - The daemon: discovery (`claude agents --json`, sessions folder watch), transcript ingest, status
   extraction, secret masking, delivery checks and expiry of sends, the `hub.db` index (same file,
-  schema v4).
+  schema v5).
 - `hub daemon run|start|stop|status`.
 - The TUI, read-only: session list, Status, History and search, `j` to bring a session's terminal
   window to the front.

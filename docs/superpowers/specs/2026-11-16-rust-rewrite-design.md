@@ -79,7 +79,7 @@ All of `CLAUDE.md` "Security rules", "Domain rules" and "Ask before" stay bindin
   terminals.
 
 **Repo layout** (decided with A): a Cargo workspace under `crates/` next to the existing `src/` and `gui/`. Same
-`hub.db` schema (v4) and same data directory, so the Rust TUI can read what the TypeScript daemon writes and vice versa.
+`hub.db` schema (v5) and same data directory, so the Rust TUI can read what the TypeScript daemon writes and vice versa.
 The last slice deletes `src/`, `gui/`, `package.json`, `bun.lock` etc.
 
 ## Architecture
@@ -134,7 +134,7 @@ Contents unchanged: `hub.db`, `bin/`, `run/` (`daemon.lock`, `daemon.log`, `rela
 - **Status extraction and answered detection:** every rule in `src/status/*`.
 - **Masking:** all 23 secret rules, card (network + Luhn), IBAN (mod-97), key-value rule; `[masked:<label>]` output;
   idempotent. Patterns needing look-around use `fancy-regex` with a backtrack limit, or hand-written scanners.
-- **Store:** schema v4 exactly (tables, FTS5 external content with secure-delete, triggers, indexes, pragmas, WAL
+- **Store:** schema v5 exactly (tables, FTS5 external content with secure-delete, triggers, indexes, pragmas, WAL
   required), the migrations array (new migrations append), purge and VACUUM schedule, search, history paging,
   `transitionSend` rules. `rusqlite` with bundled SQLite (FTS5 on).
 - **Daemon:** 2 s tail tick, 30 s liveness + recent-transcript scan, single-flight passes, per-profile backoff

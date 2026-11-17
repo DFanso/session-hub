@@ -78,3 +78,69 @@ fn lone_surrogate_in_assistant_text_block() {
         other => panic!("{other:?}"),
     }
 }
+
+// Port of "a compaction summary and local command output are not owner prompts; a typed command is".
+#[test]
+fn a_compaction_summary_and_local_command_output_are_not_owner_prompts_a_typed_command_is() {
+    use hub_core::ingest::records::Classified;
+    let raw = std::fs::read_to_string(common::fixture("records/user-system.jsonl")).unwrap();
+    let r: Vec<Classified> = raw.lines().map(classify).collect();
+    let ignored = |reason: &str| Classified::Ignored {
+        reason: reason.to_string(),
+        record_type: None,
+    };
+    assert_eq!(r[0], ignored("compact-summary"));
+    assert_eq!(r[1], ignored("local-command-output"));
+    assert_eq!(r[2], ignored("local-command-output"));
+    assert_eq!(r[3], ignored("local-command-output"));
+    assert!(matches!(r[4], Classified::OwnerPrompt { .. }));
+    // Only text that starts with the tag is command output; the owner may mention the tag.
+    match &r[5] {
+        Classified::OwnerPrompt { text, .. } => {
+            assert_eq!(text, "Q7 yes, and see <local-command-stdout> above");
+        }
+        other => panic!("{other:?}"),
+    }
+    assert!(!format!("{:?}", &r[..4]).contains("fixture"));
+}
+
+#[test]
+fn local_command_output_tag_may_follow_js_whitespace_only() {
+    use hub_core::ingest::records::Classified;
+    // JS `\s` includes U+FEFF and U+00A0 (and not U+0085).
+    for lead in ["", " ", "\\n", "\\ufeff", "\\u00a0"] {
+        let line = user(&format!("{lead}<local-command-stdout>x"));
+        assert!(
+            matches!(classify(&line), Classified::Ignored { ref reason, .. } if reason == "local-command-output"),
+            "{lead:?}"
+        );
+    }
+    for lead in ["\\u0085", "a "] {
+        let line = user(&format!("{lead}<local-command-stdout>x"));
+        assert!(
+            matches!(classify(&line), Classified::OwnerPrompt { .. }),
+            "{lead:?}"
+        );
+    }
+}
+
+#[test]
+fn compact_summary_flag_is_ignored_only_when_exactly_true() {
+    use hub_core::ingest::records::Classified;
+    let mk = |flag: &str| {
+        format!(
+            r#"{{"type":"user","uuid":"u","timestamp":"t","isCompactSummary":{flag},"message":{{"content":"hi"}}}}"#
+        )
+    };
+    assert!(
+        matches!(classify(&mk("true")), Classified::Ignored { ref reason, .. } if reason == "compact-summary")
+    );
+    assert!(matches!(
+        classify(&mk("\"true\"")),
+        Classified::OwnerPrompt { .. }
+    ));
+    assert!(matches!(
+        classify(&mk("false")),
+        Classified::OwnerPrompt { .. }
+    ));
+}

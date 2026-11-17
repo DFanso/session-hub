@@ -2,7 +2,7 @@
 //! share one database file, so every string here must stay byte-identical to the TS original.
 
 /// Ordered migrations. Index i holds schema version i + 1. Never edit a shipped entry; append.
-pub const MIGRATIONS: [&str; 4] = [
+pub const MIGRATIONS: [&str; 5] = [
     r#"
 CREATE TABLE sessions (
   session_id TEXT PRIMARY KEY,
@@ -140,5 +140,12 @@ UPDATE latest_reply SET reply_ts = COALESCE(
   strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
  WHERE strftime('%Y-%m-%dT%H:%M:%fZ', reply_ts) IS NOT reply_ts
     OR NOT reply_ts GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]*';
+"#,
+    r#"
+DELETE FROM messages
+ WHERE role = 'owner'
+   AND (text LIKE '<local-command-stdout>%'
+     OR text LIKE '<local-command-stderr>%'
+     OR text LIKE 'This session is being continued from a previous conversation%');
 "#,
 ];

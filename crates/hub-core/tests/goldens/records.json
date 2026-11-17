@@ -1836,6 +1836,58 @@
     }
   },
   {
+    "name": "fixture:user-system.jsonl:1",
+    "input": "{\"isSidechain\":false,\"type\":\"user\",\"message\":{\"role\":\"user\",\"content\":\"This session is being continued from a previous conversation. fixture summary naming Q7: yes\"},\"isCompactSummary\":true,\"isVisibleInTranscriptOnly\":true,\"userType\":\"external\",\"uuid\":\"s-1\",\"timestamp\":\"2026-11-15T08:59:40.000Z\"}",
+    "output": {
+      "kind": "ignored",
+      "reason": "compact-summary"
+    }
+  },
+  {
+    "name": "fixture:user-system.jsonl:2",
+    "input": "{\"isSidechain\":false,\"type\":\"user\",\"message\":{\"role\":\"user\",\"content\":\"<local-command-stdout>fixture compacted Q7: yes</local-command-stdout>\"},\"userType\":\"external\",\"uuid\":\"s-2\",\"timestamp\":\"2026-11-15T08:59:41.000Z\"}",
+    "output": {
+      "kind": "ignored",
+      "reason": "local-command-output"
+    }
+  },
+  {
+    "name": "fixture:user-system.jsonl:3",
+    "input": "{\"isSidechain\":false,\"type\":\"user\",\"message\":{\"role\":\"user\",\"content\":[{\"type\":\"text\",\"text\":\"<local-command-stdout>fixture array output</local-command-stdout>\"}]},\"userType\":\"external\",\"uuid\":\"s-3\",\"timestamp\":\"2026-11-15T08:59:42.000Z\"}",
+    "output": {
+      "kind": "ignored",
+      "reason": "local-command-output"
+    }
+  },
+  {
+    "name": "fixture:user-system.jsonl:4",
+    "input": "{\"isSidechain\":false,\"type\":\"user\",\"message\":{\"role\":\"user\",\"content\":\"<local-command-stderr>fixture error output</local-command-stderr>\"},\"userType\":\"external\",\"uuid\":\"s-4\",\"timestamp\":\"2026-11-15T08:59:43.000Z\"}",
+    "output": {
+      "kind": "ignored",
+      "reason": "local-command-output"
+    }
+  },
+  {
+    "name": "fixture:user-system.jsonl:5",
+    "input": "{\"isSidechain\":false,\"type\":\"user\",\"message\":{\"role\":\"user\",\"content\":\"<command-name>/compact</command-name>\\n            <command-message>compact</command-message>\\n            <command-args></command-args>\"},\"userType\":\"external\",\"uuid\":\"s-5\",\"timestamp\":\"2026-11-15T08:59:44.000Z\"}",
+    "output": {
+      "kind": "owner-prompt",
+      "uuid": "s-5",
+      "ts": "2026-11-15T08:59:44.000Z",
+      "text": "<command-name>/compact</command-name>\n            <command-message>compact</command-message>\n            <command-args></command-args>"
+    }
+  },
+  {
+    "name": "fixture:user-system.jsonl:6",
+    "input": "{\"isSidechain\":false,\"type\":\"user\",\"message\":{\"role\":\"user\",\"content\":\"Q7 yes, and see <local-command-stdout> above\"},\"userType\":\"external\",\"uuid\":\"s-6\",\"timestamp\":\"2026-11-15T08:59:45.000Z\"}",
+    "output": {
+      "kind": "owner-prompt",
+      "uuid": "s-6",
+      "ts": "2026-11-15T08:59:45.000Z",
+      "text": "Q7 yes, and see <local-command-stdout> above"
+    }
+  },
+  {
     "name": "fixture:user-typed.jsonl:1",
     "input": "{\"parentUuid\":\"p1\",\"isSidechain\":false,\"promptId\":\"pr1\",\"type\":\"user\",\"message\":{\"role\":\"user\",\"content\":\"fixture owner prompt\"},\"uuid\":\"u-1\",\"timestamp\":\"2026-11-13T08:26:28.698Z\",\"permissionMode\":\"bypassPermissions\",\"origin\":{\"kind\":\"human\"},\"promptSource\":\"typed\",\"userType\":\"external\",\"cwd\":\"C:\\\\fixture\",\"sessionId\":\"s-1\",\"version\":\"2.1.323\"}",
     "output": {

@@ -170,15 +170,31 @@ fn view() -> SessionView {
 }
 
 #[test]
-fn an_answered_item_is_dimmed_and_tagged_an_open_one_is_not() {
+fn an_answered_item_is_left_out_an_open_one_is_shown() {
     let lines = status_lines(&view(), &meta(), NOW, 120);
     let open = lines.iter().find(|l| l.text.contains("open one")).unwrap();
-    let done = lines.iter().find(|l| l.text.contains("done one")).unwrap();
     assert_eq!(open.text, "Q1 open one");
     assert!(!open.dim);
-    assert_eq!(done.text, "Q2 (answered) done one");
-    assert!(done.dim);
-    assert_eq!(done.color, None);
+    assert!(
+        !lines
+            .iter()
+            .any(|l| l.text.contains("done one") || l.text.contains("detail"))
+    );
+}
+
+#[test]
+fn when_every_item_is_answered_the_list_says_nothing() {
+    let mut v = view();
+    for w in &mut v.status.as_mut().unwrap().waiting {
+        w.answered = true;
+    }
+    let lines = status_lines(&v, &meta(), NOW, 120);
+    let at = lines
+        .iter()
+        .position(|l| l.text == "Waiting on you")
+        .unwrap();
+    assert_eq!(lines[at + 1].text, "nothing");
+    assert!(lines[at + 1].dim);
 }
 
 #[test]
@@ -250,8 +266,6 @@ fn status_lines_full_layout() {
             "",
             "Waiting on you",
             "Q1 open one",
-            "Q2 (answered) done one",
-            "- detail",
             "",
             "Recommendations",
             "* rec",

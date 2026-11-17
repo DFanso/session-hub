@@ -1,6 +1,6 @@
 {
   "version_storage": "schema_version table (rows of version); PRAGMA user_version is unused",
-  "schema_version_max": 4,
+  "schema_version_max": 5,
   "schema_version_rows": [
     {
       "version": 1
@@ -13,6 +13,9 @@
     },
     {
       "version": 4
+    },
+    {
+      "version": 5
     }
   ],
   "pragma_user_version": 0,

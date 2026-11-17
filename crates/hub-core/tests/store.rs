@@ -1165,7 +1165,7 @@ fn migrations_fresh_index_is_at_latest_version_with_no_unknown_count() {
         })
         .unwrap();
     assert_eq!(v, MIGRATIONS.len() as i64);
-    assert_eq!(MIGRATIONS.len(), 4);
+    assert_eq!(MIGRATIONS.len(), 5);
 }
 
 #[test]
@@ -1359,6 +1359,75 @@ fn v4_row_whose_session_is_missing_takes_the_migration_time() {
     assert!(re.is_match(&ts), "{ts}");
     // ISO strings of one width compare like their instants.
     assert!(ts >= iso(before - 1000), "{ts}");
+}
+
+// ---- v5: owner rows that were Claude Code's text are dropped ----
+
+#[test]
+fn v5_drops_indexed_compaction_summaries_and_local_command_output_keeping_the_owners_own_text() {
+    let db = Db::new();
+    let raw = db.raw();
+    raw.execute_batch("CREATE TABLE schema_version (version INTEGER NOT NULL)")
+        .unwrap();
+    for m in &MIGRATIONS[..4] {
+        raw.execute_batch(m).unwrap();
+    }
+    raw.execute_batch("INSERT INTO schema_version (version) VALUES (1), (2), (3), (4)")
+        .unwrap();
+    raw.execute_batch(
+        "INSERT INTO sessions VALUES ('s1','work','alpha','C:/x',1,'interactive','idle',1,2,NULL,'C:/x/s1.jsonl',NULL)",
+    )
+    .unwrap();
+    for (uuid, role, text) in [
+        (
+            "m1",
+            "owner",
+            "This session is being continued from a previous conversation. Q7: yes",
+        ),
+        (
+            "m2",
+            "owner",
+            "<local-command-stdout>Compacted</local-command-stdout>",
+        ),
+        (
+            "m3",
+            "owner",
+            "<local-command-stderr>oops</local-command-stderr>",
+        ),
+        ("m4", "owner", "Q7 yes go"),
+        ("m5", "owner", "<command-name>/compact</command-name>"),
+        (
+            "m6",
+            "assistant",
+            "<local-command-stdout>quoted by the session</local-command-stdout>",
+        ),
+    ] {
+        raw.execute(
+            "INSERT INTO messages (uuid, session_id, ts, role, from_name, text) VALUES (?1, 's1', '2026-11-15T09:00:00.000Z', ?2, NULL, ?3)",
+            [uuid, role, text],
+        )
+        .unwrap();
+    }
+    drop(raw);
+    db.open().close().unwrap();
+    let check = db.raw_ro();
+    let mut stmt = check
+        .prepare("SELECT uuid FROM messages ORDER BY uuid")
+        .unwrap();
+    let left: Vec<String> = stmt
+        .query_map([], |r| r.get(0))
+        .unwrap()
+        .map(Result::unwrap)
+        .collect();
+    let fts: i64 = check
+        .query_row(
+            "SELECT COUNT(*) FROM messages_fts WHERE messages_fts MATCH 'Compacted'",
+            [],
+            |r| r.get(0),
+        )
+        .unwrap();
+    assert_eq!(left, ["m4", "m5", "m6"]);
+    assert_eq!(fts, 0);
 }
 
 // ---- concurrency ----
@@ -1567,29 +1636,29 @@ fn refuses_newer_schema() {
     let db = Db::new();
     db.open().close().unwrap();
     db.raw()
-        .execute_batch("INSERT INTO schema_version (version) VALUES (5)")
+        .execute_batch("INSERT INTO schema_version (version) VALUES (6)")
         .unwrap();
     let err = Store::open(&db.path, true).err().unwrap();
     assert!(
         matches!(
             err,
             StoreError::NewerSchema {
-                found: 5,
-                supported: 4
+                found: 6,
+                supported: 5
             }
         ),
         "{err:?}"
     );
     assert_eq!(
         err.to_string(),
-        "hub.db has schema version 5, newer than this build supports (4)"
+        "hub.db has schema version 6, newer than this build supports (5)"
     );
     let err = Store::open_read_only(&db.path).err().unwrap();
     assert!(matches!(
         err,
         StoreError::NewerSchema {
-            found: 5,
-            supported: 4
+            found: 6,
+            supported: 5
         }
     ));
     // The refused open released the file.

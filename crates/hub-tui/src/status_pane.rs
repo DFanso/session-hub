@@ -188,20 +188,14 @@ pub fn status_lines(s: &SessionView, meta: &SnapshotMeta, now: i64, width: usize
     }
     o.blank();
     o.add("Waiting on you", bold(), "");
-    if st.waiting.is_empty() {
+    // An item the owner already answered after this list was posted is left out.
+    let open: Vec<_> = st.waiting.iter().filter(|w| !w.answered).collect();
+    if open.is_empty() {
         o.add("  nothing", dim(), "");
     }
-    for w in &st.waiting {
+    for w in open {
         let id = w.item.id.as_deref().filter(|i| !i.is_empty());
         let id = id.map_or(String::new(), |i| format!("{i} "));
-        // An item the owner already answered after this list was posted stays visible, dimmed.
-        if w.answered {
-            o.add(&format!("  {id}(answered) {}", w.item.text), dim(), "    ");
-            for c in &w.item.children {
-                o.add(&format!("    - {c}"), dim(), "      ");
-            }
-            continue;
-        }
         let new = if w.item.is_new { "NEW " } else { "" };
         let style = if w.item.is_new {
             Line {

@@ -7,8 +7,8 @@ use hub_core::config::{DELIVERY_WINDOW_MS, EVAL_SESSION_PREFIX, MESSAGE_HEADER, 
 use hub_core::daemon::log::{LogValue, MemoryLogger};
 use hub_core::ingest::records::{Classified, classify};
 use hub_core::send::{
-    HEADERLESS_DETAIL, build_message, check_delivery, delivery_checker, delivery_match,
-    expire_sends, normalize, parse_js_date, sha256_hex,
+    HEADERLESS_DETAIL, REFLOWED_DETAIL, build_message, check_delivery, delivery_checker,
+    delivery_match, expire_sends, normalize, parse_js_date, sha256_hex,
 };
 use hub_core::store::{LiveStatus, SendRow, SendState, SessionRow, Store, iso_utc_ms};
 use rusqlite::{Connection, OpenFlags};
@@ -725,4 +725,85 @@ fn expire_sends_returns_a_store_error_instead_of_swallowing_it() {
     // The read of open sends works; the expiring write fails on the read-only connection.
     assert!(expire_sends(&ro, T0 + WINDOW + 1).is_err());
     assert_eq!(f.state(1), "pending");
+}
+
+// ---- the relay changed the line break after the header (#16) ----
+
+#[test]
+fn delivered_when_the_relay_changed_only_the_line_break_after_the_header() {
+    // Seen live: the relay model sent the header and the text with one line break between them.
+    for sep in ["\n", "\r\n", "\n\n\n", " \n", "\n \n"] {
+        let b = format!("{MESSAGE_HEADER}{sep}{TEXT}");
+        assert_eq!(
+            check_delivery(&send_for(TEXT), &[peer(&b, T0 + 5000)], T0 + 6000),
+            SendState::Delivered,
+            "{sep:?}"
+        );
+        assert_eq!(
+            delivery_match(&send_for(TEXT), &[peer(&b, T0 + 5000)]),
+            Some("reflowed"),
+            "{sep:?}"
+        );
+    }
+    // The owner's text itself must still match exactly; no line break at all is not a separator.
+    for b in [
+        format!("{MESSAGE_HEADER}\n{TEXT}!"),
+        format!("{MESSAGE_HEADER}\n {TEXT}"),
+        format!("{MESSAGE_HEADER}{TEXT}"),
+        format!("{MESSAGE_HEADER} {TEXT}"),
+    ] {
+        assert_eq!(
+            check_delivery(&send_for(TEXT), &[peer(&b, T0 + 5000)], T0 + 6000),
+            SendState::Pending,
+            "{b:?}"
+        );
+    }
+}
+
+#[test]
+fn a_reflowed_delivery_notes_it_and_the_other_rules_still_hold() {
+    assert_eq!(
+        REFLOWED_DETAIL,
+        "delivered; the relay changed the line break after the header"
+    );
+    let f = fixture();
+    let id = f.create("ok", |_| {});
+    f.checker(T0 + 6000)(
+        &f.store,
+        "s1",
+        &[peer(&format!("{MESSAGE_HEADER}\nok"), T0 + 5000)],
+    );
+    let a = f.store.get_send(id).unwrap().unwrap();
+    assert_eq!(a.state, SendState::Delivered);
+    assert_eq!(a.detail.as_deref(), Some(REFLOWED_DETAIL));
+    // Same rules as a full match: not from the relay, or before the send, proves nothing.
+    let b = format!("{MESSAGE_HEADER}\nok");
+    assert_eq!(
+        check_delivery(
+            &send_for("ok"),
+            &[peer_as(&b, T0 + 5000, "someone", "x")],
+            T0 + 6000
+        ),
+        SendState::Pending
+    );
+    assert_eq!(
+        delivery_match(&send_for("ok"), &[peer(&b, T0 - 5000)]),
+        None
+    );
+}
+
+#[test]
+fn a_known_send_whose_header_line_break_the_relay_changed_is_not_stray() {
+    let f = fixture();
+    f.create("Recommended all are approved", |_| {});
+    f.checker(T0 + 6000)(
+        &f.store,
+        "s1",
+        &[peer(
+            &format!("{MESSAGE_HEADER}\nRecommended all are approved"),
+            T0 + 5000,
+        )],
+    );
+    assert!(f.strays().is_empty());
+    assert_eq!(f.store.get_meta("relay_stray_count").unwrap(), None);
 }

@@ -1140,7 +1140,7 @@ mod tests {
     #[test]
     fn purge_batch_is_the_sql_limit() {
         assert!(PURGE_SQL.ends_with(&format!("LIMIT {PURGE_BATCH})")));
-        assert_eq!(SCHEMA_VERSION, 4);
+        assert_eq!(SCHEMA_VERSION, 5);
     }
 
     #[test]
