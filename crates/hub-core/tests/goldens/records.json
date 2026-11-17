@@ -1390,6 +1390,50 @@
     }
   },
   {
+    "name": "focus:5",
+    "input": "{\"type\":\"user\",\"isSidechain\":false,\"message\":{\"role\":\"user\",\"content\":\"﻿<local-command-stdout>x</local-command-stdout>\"},\"uuid\":\"u-lc\",\"timestamp\":\"t\",\"origin\":{\"kind\":\"human\"}}",
+    "output": {
+      "kind": "ignored",
+      "reason": "local-command-output"
+    }
+  },
+  {
+    "name": "focus:6",
+    "input": "{\"type\":\"user\",\"isSidechain\":false,\"message\":{\"role\":\"user\",\"content\":\" <local-command-stderr>x</local-command-stderr>\"},\"uuid\":\"u-lc\",\"timestamp\":\"t\",\"origin\":{\"kind\":\"human\"}}",
+    "output": {
+      "kind": "ignored",
+      "reason": "local-command-output"
+    }
+  },
+  {
+    "name": "focus:7",
+    "input": "{\"type\":\"user\",\"isSidechain\":false,\"message\":{\"role\":\"user\",\"content\":\"<local-command-stdout>x</local-command-stdout>\"},\"uuid\":\"u-lc\",\"timestamp\":\"t\",\"origin\":{\"kind\":\"human\"}}",
+    "output": {
+      "kind": "owner-prompt",
+      "uuid": "u-lc",
+      "ts": "t",
+      "text": "<local-command-stdout>x</local-command-stdout>"
+    }
+  },
+  {
+    "name": "focus:8",
+    "input": "{\"type\":\"user\",\"isSidechain\":false,\"message\":{\"role\":\"user\",\"content\":\"\\n  <local-command-stderr>x</local-command-stderr>\"},\"uuid\":\"u-lc\",\"timestamp\":\"t\",\"origin\":{\"kind\":\"human\"}}",
+    "output": {
+      "kind": "ignored",
+      "reason": "local-command-output"
+    }
+  },
+  {
+    "name": "focus:9",
+    "input": "{\"type\":\"user\",\"isSidechain\":false,\"message\":{\"role\":\"user\",\"content\":\"see <local-command-stdout>x</local-command-stdout>\"},\"uuid\":\"u-lc\",\"timestamp\":\"t\",\"origin\":{\"kind\":\"human\"}}",
+    "output": {
+      "kind": "owner-prompt",
+      "uuid": "u-lc",
+      "ts": "t",
+      "text": "see <local-command-stdout>x</local-command-stdout>"
+    }
+  },
+  {
     "name": "fixture:assistant.jsonl:1",
     "input": "{\"type\":\"assistant\",\"isSidechain\":false,\"uuid\":\"a-1\",\"timestamp\":\"2026-11-13T08:27:00.000Z\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"thinking\",\"thinking\":\"fixture secret thought\"},{\"type\":\"text\",\"text\":\"first part\"},{\"type\":\"tool_use\",\"id\":\"t1\",\"name\":\"Bash\",\"input\":{}},{\"type\":\"text\",\"text\":\"second part\"}]}}",
     "output": {

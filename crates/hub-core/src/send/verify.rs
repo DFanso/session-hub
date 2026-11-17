@@ -238,7 +238,8 @@ fn body_hashes(raw: &str) -> BodyHashes {
 
 /// How a record proves this send: `Full` when its body is the whole message, `Headerless` when the
 /// relay model dropped the header line (it sometimes does) and the body is exactly the owner's
-/// text. The send row keeps only the hash of the whole message, so the header is put back first.
+/// text, `Reflowed` when only the line break between the header line and the owner's text differs.
+/// The send row keeps only the hash of the whole message, so the header is put back first.
 fn match_record(send: &SendRow, r: &Classified) -> Option<Match> {
     let Classified::PeerMessage {
         ts,
@@ -269,8 +270,8 @@ fn delivery_index(send: &SendRow, records: &[&Classified]) -> Option<usize> {
     records.iter().position(|r| match_record(send, r).is_some())
 }
 
-/// How the first proving record matched (`"full"`, `"headerless"` or `"reflowed"`), or `None` when none proves
-/// the send.
+/// How the first proving record matched (`"full"`, `"headerless"` or `"reflowed"`), or `None`
+/// when none proves the send.
 pub fn delivery_match(send: &SendRow, records: &[Classified]) -> Option<&'static str> {
     records
         .iter()

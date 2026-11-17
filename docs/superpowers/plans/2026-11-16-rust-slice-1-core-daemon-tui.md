@@ -32,7 +32,7 @@
 2. **Unicode digits and letters in patterns** (`Progress: ٤٢% overall`, ID `Q١`, full-width `Ｑ1`): not matched, exactly like TS → corpus entries in Task 5.
 3. **A multi-byte UTF-8 char split across a read chunk** (4 MiB chunk ends mid-char, or a line is half-written): only complete lines are returned, the char is intact on the next read → test in Task 6.
 4. **CRLF transcripts and Windows-style paths** (`C:\\fixture`, `\r\n` line ends, backslash cwd read on macOS): `\r` stripped, paths kept verbatim → tests in Tasks 4 and 6.
-5. **DB from a newer build or held by the TS daemon** (`schema_version` 5; a writer holding the lock for 2 s): open is refused with "newer schema"; reads wait on `busy_timeout` instead of failing → tests in Task 7.
+5. **DB from a newer build or held by the TS daemon** (`schema_version` 6, one above the supported 5; a writer holding the lock for 2 s): open is refused with "newer schema"; reads wait on `busy_timeout` instead of failing → tests in Task 7.
 
 ---
 

@@ -686,5 +686,25 @@
   {
     "name": "focus:4",
     "input": "{\"type\":\"assistant\",\"isSidechain\":false,\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx😀xxxxx\"}]},\"uuid\":\"a-9\",\"timestamp\":\"t\"}"
+  },
+  {
+    "name": "focus:5",
+    "input": "{\"type\":\"user\",\"isSidechain\":false,\"message\":{\"role\":\"user\",\"content\":\"﻿<local-command-stdout>x</local-command-stdout>\"},\"uuid\":\"u-lc\",\"timestamp\":\"t\",\"origin\":{\"kind\":\"human\"}}"
+  },
+  {
+    "name": "focus:6",
+    "input": "{\"type\":\"user\",\"isSidechain\":false,\"message\":{\"role\":\"user\",\"content\":\" <local-command-stderr>x</local-command-stderr>\"},\"uuid\":\"u-lc\",\"timestamp\":\"t\",\"origin\":{\"kind\":\"human\"}}"
+  },
+  {
+    "name": "focus:7",
+    "input": "{\"type\":\"user\",\"isSidechain\":false,\"message\":{\"role\":\"user\",\"content\":\"<local-command-stdout>x</local-command-stdout>\"},\"uuid\":\"u-lc\",\"timestamp\":\"t\",\"origin\":{\"kind\":\"human\"}}"
+  },
+  {
+    "name": "focus:8",
+    "input": "{\"type\":\"user\",\"isSidechain\":false,\"message\":{\"role\":\"user\",\"content\":\"\\n  <local-command-stderr>x</local-command-stderr>\"},\"uuid\":\"u-lc\",\"timestamp\":\"t\",\"origin\":{\"kind\":\"human\"}}"
+  },
+  {
+    "name": "focus:9",
+    "input": "{\"type\":\"user\",\"isSidechain\":false,\"message\":{\"role\":\"user\",\"content\":\"see <local-command-stdout>x</local-command-stdout>\"},\"uuid\":\"u-lc\",\"timestamp\":\"t\",\"origin\":{\"kind\":\"human\"}}"
   }
 ]

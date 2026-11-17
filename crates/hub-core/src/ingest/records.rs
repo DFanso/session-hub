@@ -91,6 +91,8 @@ static WRAP_OPEN: LazyLock<Regex> = LazyLock::new(|| {
 });
 static FROM_NAME: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r#"(?-u:\b)from-name="([^"]*)""#).expect("from-name regex"));
+static FROM_MODE: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r#"(?-u:\b)from-mode="([^"]*)""#).expect("from-mode regex"));
 /// A user record holding a local command's output rather than anything the owner typed
 /// (JS `^\s*<local-command-(?:stdout|stderr)>`).
 static LOCAL_COMMAND_OUTPUT: LazyLock<Regex> = LazyLock::new(|| {
@@ -99,8 +101,6 @@ static LOCAL_COMMAND_OUTPUT: LazyLock<Regex> = LazyLock::new(|| {
     ))
     .expect("local command output regex")
 });
-static FROM_MODE: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r#"(?-u:\b)from-mode="([^"]*)""#).expect("from-mode regex"));
 
 fn str_of(v: Option<&Value>) -> String {
     match v {
