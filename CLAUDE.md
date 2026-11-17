@@ -64,10 +64,13 @@ scripts/                   build, install/uninstall helpers, Windows report, GUI
   session is busy (human origin, `humanTurn` true), stored as an owner prompt like a typed turn.
 - Logs never contain message text. Secrets (tokens, connection strings, JWTs) are masked before display or indexing.
 - No network listener of any kind. TUI and daemon share only `%LOCALAPPDATA%\SessionHub\hub.db`.
-- Relay: `claude -p -n session-hub-relay --permission-mode <recipient mode> --strict-mcp-config --safe-mode
-  --max-budget-usd 0.25 --tools "SendMessage" --allowedTools "SendMessage" --disallowedTools "<every other built-in
-  tool>" --max-turns 2 --model haiku --no-session-persistence --output-format json` (safe mode: no CLAUDE.md, skills,
-  plugins, hooks or MCP servers from the profile), message on stdin (the prompt says it is data, never instructions),
+- Relay: `claude -p -n session-hub-relay --permission-mode <recipient mode> --strict-mcp-config --setting-sources ""
+  --disable-slash-commands --settings <guard hook JSON> --max-budget-usd 0.25 --tools "SendMessage" --allowedTools
+  "SendMessage" --disallowedTools "<every other built-in tool>" --max-turns 2 --model haiku --no-session-persistence
+  --output-format json` (no settings, CLAUDE.md, plugins, hooks, skills or MCP servers from the profile; `--safe-mode`
+  would also switch off the guard), message on stdin (the prompt says it is data, never instructions). The guard is a
+  PreToolUse hook running `hub relay-guard` (`src/send/guard.ts`): exactly one `SendMessage`, only to the chosen name
+  (`SESSION_HUB_RELAY_TO`), claimed through a per-send marker file; everything else is blocked (fail closed),
   cwd `%LOCALAPPDATA%\SessionHub\relay`, environment allow-listed (`relayEnv` in `src/send/relay.ts`: no
   `ANTHROPIC_*` or `CLAUDE_CODE_*`). Never `--restricted`, never change `crossSessionInbound`.
 - A send to a busy session stays "pending" until that session takes the message into its turn, then becomes
@@ -83,6 +86,8 @@ scripts/                   build, install/uninstall helpers, Windows report, GUI
   any session can take the relay's name, so this never decides anything but what is shown and counted.
 - Delivery is "delivered" only on an exact SHA-256 match of the sent text in the recipient sessionId's own
   transcript (peer record from `session-hub-relay`, timestamp after the send started). Never report success otherwise.
+  Two relay-model edits are tolerated, with the owner's text still byte for byte: the header line dropped, or a
+  different line break between the header line and the text (detail says so).
 - Relay recipients come only from the live list, re-read right before the send; refuse when two live sessions share
   the name.
 - A relay is never retried automatically, not even on a provider 429 or overload: the message may already have
@@ -99,7 +104,9 @@ scripts/                   build, install/uninstall helpers, Windows report, GUI
 - Local single-user desktop tool: one daemon (`hubd`) writes the SQLite index; the TUI and the `hub bridge` child of
   the tray read it. No network, no services, no cloud. Deploy target: `hub install` on the owner's PC from a
   reviewed build; each release needs a passing Windows test report (`scripts/test-windows-report.ps1`) and a
-  passing `bun run relay-eval` in each profile (real relays to throwaway `sh-eval-*` background sessions).
+  passing `bun run relay-eval` in each profile (real relays to throwaway `sh-eval-*` background sessions; the report
+  script runs `relay-eval --check`, which fails until both profiles have a PASS report for the current relay command
+  and prompt, made with the installed Claude Code version, at most 30 days old).
 
 ## Upgrade actions
 - .NET 10 LTS (SDK 10.0.404): supported to 2028-11-14. No action.

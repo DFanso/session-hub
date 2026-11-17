@@ -1,10 +1,12 @@
-import { mkdirSync } from "node:fs";
+import { existsSync, mkdirSync, rmSync } from "node:fs";
+import { join } from "node:path";
 import { RELAY_NAME, RELAY_TIMEOUT_MS } from "../config.ts";
 import type { LogFields, Logger } from "../daemon/log.ts";
 import type { ClaudeCli } from "../discovery/agents.ts";
 import { maskSecrets } from "../security/mask.ts";
 import type { SendRow, Store } from "../store/db.ts";
 import { runWithTimeout } from "../util/proc.ts";
+import { GUARD_MARKER_ENV, GUARD_TO_ENV, guardSettings } from "./guard.ts";
 import type { RefuseReason } from "./refusals.ts";
 import { buildMessage, normalize, sha256Hex } from "./verify.ts";
 
@@ -40,6 +42,11 @@ export interface SendDeps {
   log?: Logger;
   /** Tests only: names of extra environment variables the relay may inherit (the fake CLI's). */
   relayEnvExtra?: readonly string[];
+  /**
+   * argv of `hub relay-guard`, the relay's PreToolUse hook (the running hub.exe, or bun with the CLI
+   * entry in dev). Required: a relay never runs without its guard.
+   */
+  guardArgv: readonly string[];
 }
 
 export const MAX_TEXT_CHARS = 20_000;
@@ -96,13 +103,16 @@ const RELAY_DENIED_TOOLS =
 const RELAY_MAX_TURNS = "2";
 
 /**
- * `--safe-mode`: the relay loads nothing from the recipient's profile but its login: no CLAUDE.md,
- * skills, installed plugins, hooks, MCP servers or output styles (built-in tools and permissions work
- * as usual). Measured 2026-11-14: without it the relay loaded every installed
- * plugin, ran their SessionStart hooks and read the user CLAUDE.md (about 63k tokens of context); a
- * relay then answered in the owner's reply format instead of sending. With it: about 11k tokens.
+ * The relay loads nothing from the recipient's profile but its login: `--setting-sources ""` (no user,
+ * project or local settings, so no CLAUDE.md, installed plugins, hooks or permission rules from the
+ * profile), `--disable-slash-commands` (no skills or commands) and `--strict-mcp-config` (no MCP
+ * servers). Measured 2026-11-15: about 12k tokens of context, and the profile's CLAUDE.md is not in it
+ * (without these flags the relay loaded every plugin and the user CLAUDE.md, about 63k tokens).
+ * `--safe-mode` gave the same isolation but also switches off hooks given with `--settings`, and the
+ * relay needs exactly one: the PreToolUse guard (`./guard.ts`) that allows one SendMessage, to the
+ * chosen session only.
  */
-const RELAY_SAFE_MODE = "--safe-mode";
+const RELAY_ISOLATION = ["--setting-sources", "", "--disable-slash-commands"] as const;
 
 /** Spend cap per relay run; a normal run costs about USD 0.001 to 0.01 (relay.log costUsd). */
 const RELAY_MAX_BUDGET_USD = "0.25";
@@ -147,6 +157,7 @@ export function relayEnv(
   env: Record<string, string | undefined>,
   profileDir: string,
   extra: readonly string[] = [],
+  guard?: { to: string; marker: string },
 ): Record<string, string> {
   const extraUpper = new Set(extra.map((k) => k.toUpperCase()));
   const out: Record<string, string> = {};
@@ -157,11 +168,21 @@ export function relayEnv(
     }
   }
   out.CLAUDE_CONFIG_DIR = profileDir;
+  // The guard hook inherits these from claude: the one recipient, and this run's marker file.
+  if (guard) {
+    out[GUARD_TO_ENV] = guard.to;
+    out[GUARD_MARKER_ENV] = guard.marker;
+  }
   return out;
 }
 
 /** The relay command line (exported for scripts/relay-eval.ts, which runs it against real sessions). */
-export function relayArgv(claudeCmd: string[], mode: string, name: string): string[] {
+export function relayArgv(
+  claudeCmd: string[],
+  mode: string,
+  name: string,
+  guardArgv: readonly string[],
+): string[] {
   return [
     ...claudeCmd,
     "-p",
@@ -170,7 +191,9 @@ export function relayArgv(claudeCmd: string[], mode: string, name: string): stri
     "--permission-mode",
     mode,
     "--strict-mcp-config",
-    RELAY_SAFE_MODE,
+    ...RELAY_ISOLATION,
+    "--settings",
+    guardSettings(guardArgv),
     "--max-budget-usd",
     RELAY_MAX_BUDGET_USD,
     "--tools",
@@ -321,14 +344,20 @@ export async function send(req: SendRequest, deps: SendDeps): Promise<SendRow> {
 
   let failure: string | null;
   const trace: LogFields = { sendId: id, mode };
+  // The guard claims this file on the one SendMessage it allows; a leftover from a crashed run goes.
+  const marker = join(deps.relayDir, `guard-${id}.lock`);
+  rmSync(marker, { force: true });
   const t0 = performance.now();
   try {
-    const res = await runWithTimeout(relayArgv(deps.claudeCmd ?? ["claude"], mode, name), {
-      env: relayEnv(process.env, profile.dir, deps.relayEnvExtra),
-      cwd: deps.relayDir,
-      stdin: message,
-      timeoutMs: deps.relayTimeoutMs ?? RELAY_TIMEOUT_MS,
-    });
+    const res = await runWithTimeout(
+      relayArgv(deps.claudeCmd ?? ["claude"], mode, name, deps.guardArgv),
+      {
+        env: relayEnv(process.env, profile.dir, deps.relayEnvExtra, { to: name, marker }),
+        cwd: deps.relayDir,
+        stdin: message,
+        timeoutMs: deps.relayTimeoutMs ?? RELAY_TIMEOUT_MS,
+      },
+    );
     failure = relayFailure(res.exitCode, res.stdout, res.timedOut);
     if (failure !== null) trace.reason = failureCode(res.exitCode, res.stdout, res.timedOut);
     trace.exit = res.exitCode ?? -1;
@@ -339,6 +368,10 @@ export async function send(req: SendRequest, deps: SendDeps): Promise<SendRow> {
     trace.reason = "spawn-failed";
   }
   trace.wallMs = Math.round(performance.now() - t0);
+  // A relay that reported DONE without the guard claiming the marker sent nothing through the guard:
+  // either nothing was sent, or the hook did not run. Logged; delivery is still proved from the transcript.
+  trace.guard = existsSync(marker);
+  rmSync(marker, { force: true });
   trace.ok = failure === null;
   if (failure === null) deps.log?.info("relay", trace);
   else deps.log?.warn("relay", trace);

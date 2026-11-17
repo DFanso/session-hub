@@ -129,9 +129,57 @@ public class AnsweredFormTests
         Assert.Equal(CardEdge.None, c.Edge);
         Assert.Null(c.ListBadge);
         Assert.False(c.HasOpenWaiting);
-        Assert.True(c.HasWaiting);
+        // Every item is answered, so every list hides them all and says "Nothing.".
+        Assert.False(c.HasWaiting);
+        Assert.Equal(0, c.Answers.ShownCount);
         Assert.Equal(SessionGroup.Idle, c.Session.Group);
         Assert.Equal("All items answered or dismissed · Ctrl+Enter sends", c.Answers.FooterText);
+    }
+
+    [Fact]
+    public void An_answered_item_is_hidden_unless_its_box_holds_text()
+    {
+        var (_, c) = Card();
+        var f = c.Answers;
+        Assert.True(f.Items[0].IsShown);
+        Assert.False(f.Items[1].IsShown);
+        Assert.True(f.Items[2].IsShown);
+        Assert.Equal(2, f.ShownCount);
+        Assert.True(c.HasWaiting);
+
+        // A filled box would be sent, so the item comes back into view; cleared, it hides again.
+        var raised = new List<string?>();
+        f.Items[1].PropertyChanged += (_, e) => raised.Add(e.PropertyName);
+        f.Items[1].Answer = "Stay";
+        Assert.True(f.Items[1].IsShown);
+        Assert.Contains(nameof(AnswerItemViewModel.IsShown), raised);
+        Assert.Equal(3, f.ShownCount);
+        f.Items[1].Answer = "";
+        Assert.False(f.Items[1].IsShown);
+        Assert.Equal(2, f.ShownCount);
+    }
+
+    [Fact]
+    public void A_dismissed_item_stays_shown_with_undo()
+    {
+        var (_, c) = Card();
+        var auth = c.Answers.Items[0];
+        auth.Dismiss();
+        Assert.True(auth.IsShown);
+        Assert.True(auth.CanUndo);
+        Assert.Equal(2, c.Answers.ShownCount);
+    }
+
+    [Fact]
+    public void The_card_hears_when_the_last_shown_item_is_answered()
+    {
+        var (hub, c) = Card();
+        var raised = new List<string?>();
+        c.PropertyChanged += (_, e) => raised.Add(e.PropertyName);
+        WaitingItem[] next = [.. Questions.Select(q => q with { Answered = true })];
+        hub.Apply(Snap(WithReply(Session("s1", name: "alpha", waitingCount: 0, waiting: next), "u")));
+        Assert.False(c.HasWaiting);
+        Assert.Contains(nameof(CardViewModel.HasWaiting), raised);
     }
 
     [Fact]

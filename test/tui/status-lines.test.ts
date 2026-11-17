@@ -37,15 +37,22 @@ function view(): SessionView {
 }
 
 describe("statusLines", () => {
-  test("an answered item is dimmed and tagged, an open one is not", () => {
+  test("an answered item is left out, an open one is shown", () => {
     const lines = statusLines(view(), META, NOW, 120);
     const open = lines.find((l) => l.text.includes("open one"));
-    const done = lines.find((l) => l.text.includes("done one"));
     expect(open?.text).toBe("Q1 open one");
     expect(open?.dim).toBeUndefined();
-    expect(done?.text).toBe("Q2 (answered) done one");
-    expect(done?.dim).toBe(true);
-    expect(done?.color).toBeUndefined();
+    expect(lines.some((l) => l.text.includes("done one") || l.text.includes("detail"))).toBe(false);
+  });
+
+  test("when every item is answered the list says nothing", () => {
+    const v = view();
+    const st = v.status as NonNullable<typeof v.status>;
+    v.status = { ...st, waiting: st.waiting.map((w) => ({ ...w, answered: true })) };
+    const lines = statusLines(v, META, NOW, 120);
+    const at = lines.findIndex((l) => l.text === "Waiting on you");
+    expect(lines[at + 1]?.text).toBe("nothing");
+    expect(lines[at + 1]?.dim).toBe(true);
   });
 
   test("relay messages that reached the wrong session are flagged", () => {

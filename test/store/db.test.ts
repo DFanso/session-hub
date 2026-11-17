@@ -565,7 +565,41 @@ describe("migrations", () => {
     const row = raw.query("SELECT MAX(version) AS v FROM schema_version").get() as { v: number };
     raw.close();
     expect(row.v).toBe(MIGRATIONS.length);
-    expect(MIGRATIONS.length).toBe(4);
+    expect(MIGRATIONS.length).toBe(5);
+  });
+
+  test("v5 drops indexed compaction summaries and local command output, keeping the owner's own text", () => {
+    const raw = new Database(dbPath, { create: true, strict: true });
+    raw.run("CREATE TABLE schema_version (version INTEGER NOT NULL)");
+    for (const m of MIGRATIONS.slice(0, 4)) raw.run(m);
+    raw.run("INSERT INTO schema_version (version) VALUES (1), (2), (3), (4)");
+    raw.run(
+      "INSERT INTO sessions VALUES ('s1','work','alpha','C:/x',1,'interactive','idle',1,2,NULL,'C:/x/s1.jsonl',NULL)",
+    );
+    const rows: [string, string, string][] = [
+      ["m1", "owner", "This session is being continued from a previous conversation. Q7: yes"],
+      ["m2", "owner", "<local-command-stdout>Compacted</local-command-stdout>"],
+      ["m3", "owner", "<local-command-stderr>oops</local-command-stderr>"],
+      ["m4", "owner", "Q7 yes go"],
+      ["m5", "owner", "<command-name>/compact</command-name>"],
+      ["m6", "assistant", "<local-command-stdout>quoted by the session</local-command-stdout>"],
+    ];
+    for (const [uuid, role, text] of rows) {
+      raw.run(
+        "INSERT INTO messages (uuid, session_id, ts, role, from_name, text) VALUES (?, 's1', '2026-11-15T09:00:00.000Z', ?, NULL, ?)",
+        [uuid, role, text],
+      );
+    }
+    raw.close();
+    open();
+    const check = new Database(dbPath, { readonly: true });
+    const left = check.query("SELECT uuid FROM messages ORDER BY uuid").all() as { uuid: string }[];
+    const fts = check
+      .query("SELECT COUNT(*) AS n FROM messages_fts WHERE messages_fts MATCH 'Compacted'")
+      .get() as { n: number };
+    check.close();
+    expect(left.map((r) => r.uuid)).toEqual(["m4", "m5", "m6"]);
+    expect(fts.n).toBe(0);
   });
 
   test("v3 turns on full-text secure-delete for a v2 index and keeps its messages searchable", () => {

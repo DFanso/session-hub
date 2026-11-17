@@ -138,4 +138,13 @@ UPDATE latest_reply SET reply_ts = COALESCE(
  WHERE strftime('%Y-%m-%dT%H:%M:%fZ', reply_ts) IS NOT reply_ts
     OR NOT reply_ts GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]*';
 `,
+  // v5: drop owner rows that were Claude Code's text: compaction summaries and local command output
+  // (records.ts skips them from now on). They repeated question IDs and marked open items answered.
+  `
+DELETE FROM messages
+ WHERE role = 'owner'
+   AND (text LIKE '<local-command-stdout>%'
+     OR text LIKE '<local-command-stderr>%'
+     OR text LIKE 'This session is being continued from a previous conversation%');
+`,
 ];

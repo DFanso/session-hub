@@ -1,0 +1,7 @@
+# Security analyzers that fail the build (on top of AnalysisLevel 10.0-recommended): SQL injection,
+# file path injection and token validation turned off. global_level 200 wins over any other globalconfig.
+is_global = true
+global_level = 200
+dotnet_diagnostic.CA3001.severity = error
+dotnet_diagnostic.CA3003.severity = error
+dotnet_diagnostic.CA5404.severity = error

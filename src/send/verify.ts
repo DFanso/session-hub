@@ -35,19 +35,25 @@ function after(ts: string, createdAt: number): boolean {
 
 /** Detail of a send proved by a body the relay sent without the header. */
 export const HEADERLESS_DETAIL = "delivered without the Session Hub header";
+/** Detail of a send proved by a body whose line break after the header the relay changed. */
+export const REFLOWED_DETAIL = "delivered; the relay changed the line break after the header";
+
+/** The whitespace between the header line and the text: at least one line break, nothing else. */
+const HEADER_BREAK = /^(?:[ \t]*\r?\n)+/;
 
 /**
  * How a record proves this send: "full" when its body is the whole message, "headerless" when the
  * relay model dropped the header line (it sometimes does) and the body is exactly the owner's text.
  * The send row keeps only the hash of the whole message, so the header is put back before hashing.
  */
-function match(send: SendRow, r: Classified): "full" | "headerless" | null {
+function match(send: SendRow, r: Classified): "full" | "headerless" | "reflowed" | null {
   if (r.kind !== "peer-message" || r.fromName !== RELAY_NAME || !after(r.ts, send.createdAt)) {
     return null;
   }
   const h = bodyHashes(r.body);
   if (h.full === send.sha256) return "full";
   if (h.headerless === send.sha256) return "headerless";
+  if (h.reflowed === send.sha256) return "reflowed";
   return null;
 }
 
@@ -55,11 +61,28 @@ function match(send: SendRow, r: Classified): "full" | "headerless" | null {
  * The send hashes a relay body can prove: the body as the whole message, and, when it lacks the
  * header, the body with the header put back (match and the stray check use the same two).
  */
-function bodyHashes(raw: string): { full: string; headerless: string | null } {
+function bodyHashes(raw: string): {
+  full: string;
+  headerless: string | null;
+  reflowed: string | null;
+} {
   const body = normalize(raw);
+  if (!body.startsWith(MESSAGE_HEADER)) {
+    return {
+      full: sha256Hex(body),
+      headerless: sha256Hex(normalize(buildMessage(body))),
+      reflowed: null,
+    };
+  }
+  // The header with the owner's text after a different line break (seen live: one instead of a
+  // blank line). The text itself must still match exactly; only the break is put back.
+  const after = body.slice(MESSAGE_HEADER.length);
+  const brk = HEADER_BREAK.exec(after)?.[0];
+  const reflowed = brk === undefined ? null : normalize(buildMessage(after.slice(brk.length)));
   return {
     full: sha256Hex(body),
-    headerless: body.startsWith(MESSAGE_HEADER) ? null : sha256Hex(normalize(buildMessage(body))),
+    headerless: null,
+    reflowed: reflowed === null || reflowed === body ? null : sha256Hex(reflowed),
   };
 }
 
@@ -72,7 +95,7 @@ function deliveryIndex(send: SendRow, records: readonly Classified[]): number {
 export function deliveryMatch(
   send: SendRow,
   records: readonly Classified[],
-): "full" | "headerless" | null {
+): "full" | "headerless" | "reflowed" | null {
   const i = deliveryIndex(send, records);
   return i < 0 ? null : match(send, records[i] as Classified);
 }
@@ -129,7 +152,13 @@ function reportStrays(
   for (const r of relay) {
     if (r.kind !== "peer-message") continue;
     const h = bodyHashes(r.body);
-    if (known.has(h.full) || (h.headerless !== null && known.has(h.headerless))) continue;
+    if (
+      known.has(h.full) ||
+      (h.headerless !== null && known.has(h.headerless)) ||
+      (h.reflowed !== null && known.has(h.reflowed))
+    ) {
+      continue;
+    }
     // Older than retention: its send row may be purged (a transcript read again from the start).
     const t = Date.parse(r.ts);
     if (!Number.isFinite(t) || t < now - RETENTION_MS) continue;
@@ -171,7 +200,13 @@ export function deliveryChecker(
       // The store clears a failed send's detail when it moves to delivered; a body without the
       // header is noted instead.
       if (next !== s.state) {
-        store.transitionSend(s.id, next, how === "headerless" ? HEADERLESS_DETAIL : undefined);
+        const detail =
+          how === "headerless"
+            ? HEADERLESS_DETAIL
+            : how === "reflowed"
+              ? REFLOWED_DETAIL
+              : undefined;
+        store.transitionSend(s.id, next, detail);
       }
     }
   };

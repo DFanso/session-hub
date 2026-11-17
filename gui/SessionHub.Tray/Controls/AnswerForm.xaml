@@ -53,7 +53,8 @@
         <ItemsControl x:Name="Questions" ItemsSource="{Binding Answers.Items}" Focusable="False">
             <ItemsControl.ItemTemplate>
                 <DataTemplate>
-                    <Border Style="{StaticResource QuestionCard}">
+                    <!-- An answered item is hidden unless its box still holds text (that text would be sent). -->
+                    <Border Style="{StaticResource QuestionCard}" Visibility="{Binding IsShown, Converter={StaticResource Visible}}">
                         <StackPanel>
                             <!-- Label, the tag of an answered or dismissed item, the text; Dismiss or Undo on the right. -->
                             <Grid>

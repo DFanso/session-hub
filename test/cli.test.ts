@@ -35,6 +35,8 @@ let removedAfterExit: string[][];
 let tuiRuns: { warning?: string }[];
 let bridgeLinks: BridgeLink[];
 let bridgeExit: number;
+let guardRuns: number;
+let guardExit: number;
 let foregroundRuns: number;
 let spawnStartsDaemon: boolean;
 /** Start time of a live pid; a live pid missing here cannot be queried (null). */
@@ -102,6 +104,11 @@ function makeDeps(over: Partial<CliDeps> = {}): CliDeps {
       bridgeLinks.push(link);
       return bridgeExit;
     },
+    guardArgv: [join(root, "dist", "hub.exe"), "relay-guard"],
+    runRelayGuard: async () => {
+      guardRuns++;
+      return guardExit;
+    },
     sleep: async () => {},
     ...over,
   };
@@ -140,6 +147,8 @@ beforeEach(() => {
   tuiRuns = [];
   bridgeLinks = [];
   bridgeExit = 0;
+  guardRuns = 0;
+  guardExit = 0;
   foregroundRuns = 0;
   spawnStartsDaemon = true;
 });
@@ -533,6 +542,17 @@ describe("bridge", () => {
     expect(USAGE).toContain(
       "  hub bridge              (internal) data link for the tray app over stdin/stdout",
     );
+  });
+});
+
+describe("relay-guard", () => {
+  test("runs the guard and returns its exit code; takes no arguments", async () => {
+    guardExit = 2;
+    expect(await runCli(["relay-guard"], makeDeps())).toBe(2);
+    expect(guardRuns).toBe(1);
+    expect(await runCli(["relay-guard", "x"], makeDeps())).toBe(2);
+    expect(guardRuns).toBe(1);
+    expect(USAGE).toContain("hub relay-guard");
   });
 });
 

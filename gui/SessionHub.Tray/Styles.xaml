@@ -557,10 +557,11 @@
 
     <!--
         One "Waiting on you" item (DataContext: AnswerItemViewModel): the id in bold amber, then the text;
-        sub-items under it. An answered or dismissed item is muted and carries its tag after the id.
+        sub-items under it. An answered item is hidden (unless its answer box holds text); a dismissed one
+        is muted and carries its tag after the id.
     -->
     <DataTemplate x:Key="WaitingItemTemplate">
-        <StackPanel Margin="0,2">
+        <StackPanel Margin="0,2" Visibility="{Binding IsShown, Converter={StaticResource Visible}}">
             <TextBlock x:Name="line" TextWrapping="Wrap">
                 <Run x:Name="id" Text="{Binding Id, Mode=OneWay, StringFormat='{}{0} ', TargetNullValue=''}" FontWeight="Bold" Foreground="{DynamicResource Amber}" /><InlineUIContainer BaselineAlignment="Center"><ContentPresenter Content="{Binding}" ContentTemplate="{StaticResource StateTagTemplate}" Margin="0,0,6,0" Visibility="{Binding TagText, Converter={StaticResource EmptyToCollapsed}}" /></InlineUIContainer><Run Text="{Binding Text, Mode=OneWay}" />
             </TextBlock>

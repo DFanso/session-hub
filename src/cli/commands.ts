@@ -87,6 +87,7 @@ export const USAGE = [
   "  hub uninstall [--keep-data]",
   "                          remove the install and the data; --keep-data keeps the data",
   "  hub bridge              (internal) data link for the tray app over stdin/stdout",
+  "  hub relay-guard         (internal) the relay's tool-call guard (one message, one recipient)",
   "  hub --version           print the version",
   "  hub --help              print this help",
 ].join("\n");
@@ -172,6 +173,13 @@ export interface CliDeps {
   runTui(opts: { warning?: string }): Promise<void>;
   /** Runs the bridge on stdin/stdout until stdin closes; returns the exit code. */
   runBridge(link: BridgeLink): Promise<number>;
+  /**
+   * argv of `hub relay-guard` from this executable: `[hub.exe, "relay-guard"]`, or in dev
+   * `[bun.exe, <abs>/src/cli.ts, "relay-guard"]`. The relay's PreToolUse hook runs it.
+   */
+  guardArgv: string[];
+  /** `hub relay-guard`: reads one hook input from stdin; exit 0 allows the tool call, 2 blocks it. */
+  runRelayGuard(): Promise<number>;
   sleep(ms: number): Promise<void>;
 }
 
@@ -813,6 +821,9 @@ async function dispatch(argv: string[], d: CliDeps): Promise<number> {
     case "bridge":
       noArgs();
       return cmdBridge(d);
+    case "relay-guard":
+      noArgs();
+      return d.runRelayGuard();
     case "uninstall": {
       // The data goes by default: nothing expires it once the daemon is gone. `--purge` is the
       // old spelling of the default and still accepted.

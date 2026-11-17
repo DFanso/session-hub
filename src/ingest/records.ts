@@ -134,6 +134,9 @@ function idlePeer(r: Obj, uuid: string, ts: string): Classified {
   };
 }
 
+/** A user record holding a local command's output rather than anything the owner typed. */
+const LOCAL_COMMAND_OUTPUT = /^\s*<local-command-(?:stdout|stderr)>/;
+
 function fromRecord(r: Obj, type: string): Classified {
   const uuid = str(r.uuid);
   const ts = str(r.timestamp);
@@ -145,6 +148,9 @@ function fromRecord(r: Obj, type: string): Classified {
       // gets a queued_command attachment instead): a peer message, never an owner prompt.
       if (isObj(origin) && origin.kind === "peer") return idlePeer(r, uuid, ts);
       if (r.isMeta === true) return ignored("meta");
+      // `/compact` writes its summary as a user record. It is Claude Code's text, not the owner's, and
+      // it repeats the session's question IDs: indexed as an owner prompt it marked open items answered.
+      if (r.isCompactSummary === true) return ignored("compact-summary");
       if (origin !== undefined && (!isObj(origin) || origin.kind !== "human")) {
         return ignored("non-human-origin");
       }
@@ -153,6 +159,9 @@ function fromRecord(r: Obj, type: string): Classified {
       const text = userText(msg.content);
       if (text === null) return ignored("tool-result");
       if (text === "") return ignored("empty");
+      // The output of a local command (`/compact`, `/reload-plugins`, ...) is recorded as a user record
+      // too; the command the owner typed (`<command-name>`) stays an owner prompt.
+      if (LOCAL_COMMAND_OUTPUT.test(text)) return ignored("local-command-output");
       return { kind: "owner-prompt", uuid, ts, text };
     }
     case "assistant": {
